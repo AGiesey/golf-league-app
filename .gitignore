@@ -1,0 +1,20 @@
+# Environment
+.env
+
+# .NET / ASP.NET Core
+api/bin/
+api/obj/
+*.user
+*.suo
+.vs/
+api/.vscode/
+
+# Next.js / Node
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
