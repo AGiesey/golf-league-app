@@ -92,3 +92,4 @@ alternative season structures can be layered on later.
 - Each extension point treated as an interface, not an implementation
 - Long-term maintainability over short-term speed
 - Super admin and course setup handled via SQL until a UI is justified
+- The data model in /docs/data-model.md is the canonical reference. Any proposal that adds, removes, or changes entities must update this doc as part of its tasks.
