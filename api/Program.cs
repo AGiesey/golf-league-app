@@ -1,4 +1,5 @@
 using GolfLeagueApi.Data;
+using GolfLeagueApi.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,5 +31,14 @@ app.UseCors();
 
 // Health endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+// Ping endpoint — connectivity spike: write + read through EF Core
+app.MapGet("/ping", async (AppDbContext db) =>
+{
+    var ping = new Ping { CreatedAt = DateTime.UtcNow };
+    db.Pings.Add(ping);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { id = ping.Id, createdAt = ping.CreatedAt });
+});
 
 app.Run();
