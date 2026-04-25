@@ -1,5 +1,9 @@
+// API_URL is used server-side (internal Docker network, e.g. http://api:8080).
+// NEXT_PUBLIC_API_URL is inlined at build time for client-side use.
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+  process.env.API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:5001";
 
 export class ApiError extends Error {
   constructor(
