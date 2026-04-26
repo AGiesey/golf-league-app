@@ -20,7 +20,7 @@ import {
 
 export default function DesignPage() {
   return (
-    <div className="space-y-16 py-4">
+    <div className="space-y-16">
       <div>
         <H1>Design System</H1>
         <Lead className="mt-2">
@@ -32,7 +32,7 @@ export default function DesignPage() {
       {/* ================================================================
           Color Palette
       ================================================================ */}
-      <section className="space-y-6">
+      <section className="space-y-4">
         <H2>Color Tokens</H2>
         <Muted>
           All colors are defined in the <Code>@theme</Code> block in{" "}
@@ -123,7 +123,7 @@ export default function DesignPage() {
       <section className="space-y-4">
         <H2>Button</H2>
         <Muted>Token: <Code>--primary</Code> → <Code>var(--color-primary-600)</Code></Muted>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="default">Default</Button>
           <Button variant="secondary">Secondary</Button>
           <Button variant="outline">Outline</Button>
@@ -131,7 +131,7 @@ export default function DesignPage() {
           <Button variant="destructive">Destructive</Button>
           <Button variant="link">Link</Button>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button size="sm">Small</Button>
           <Button size="default">Default</Button>
           <Button size="lg">Large</Button>
@@ -146,7 +146,7 @@ export default function DesignPage() {
       ================================================================ */}
       <section className="space-y-4">
         <H2>Badge</H2>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Badge variant="default">Default</Badge>
           <Badge variant="secondary">Secondary</Badge>
           <Badge variant="outline">Outline</Badge>
@@ -225,7 +225,7 @@ export default function DesignPage() {
       ================================================================ */}
       <section className="space-y-4">
         <H2>Avatar</H2>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Avatar>
             <AvatarFallback>AA</AvatarFallback>
           </Avatar>
