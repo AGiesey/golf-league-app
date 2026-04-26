@@ -110,8 +110,8 @@
   --popover:               #ffffff;
   --popover-foreground:    var(--color-neutral-900);
 
-  --primary:               var(--color-primary-600);
-  --primary-foreground:    var(--color-primary-foreground);
+  --primary:               var(--color-primary-500);
+  --primary-foreground:    #ffffff;
 
   --secondary:             var(--color-secondary-100);
   --secondary-foreground:  var(--color-secondary-foreground);
