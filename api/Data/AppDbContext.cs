@@ -5,15 +5,17 @@ namespace GolfLeagueApi.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Ping> Pings => Set<Ping>();
+    public DbSet<Course> Courses => Set<Course>();
+    public DbSet<TeeBox> TeeBoxes => Set<TeeBox>();
+    public DbSet<Hole> Holes => Set<Hole>();
+    public DbSet<League> Leagues => Set<League>();
+    public DbSet<LeagueConfiguration> LeagueConfigurations => Set<LeagueConfiguration>();
+    public DbSet<Season> Seasons => Set<Season>();
+    public DbSet<Golfer> Golfers => Set<Golfer>();
+    public DbSet<LeagueMembership> LeagueMemberships => Set<LeagueMembership>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Ping>(b =>
-        {
-            b.ToTable("pings");
-            b.Property(p => p.Id).HasColumnName("id");
-            b.Property(p => p.CreatedAt).HasColumnName("created_at");
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }

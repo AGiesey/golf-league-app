@@ -25,6 +25,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: ${ConnectionStrings__Default}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-mock}
     networks:
       - app-net
     depends_on:

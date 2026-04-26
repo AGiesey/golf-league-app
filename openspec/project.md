@@ -42,6 +42,13 @@ player management, score entry, standings tracking, and golfer-facing results vi
 - Email notifications at key domain events (pairing posted, score entered,
   schedule changed)
 
+## Out of Scope (Permanently)
+- **Money handling** — the app records who won what, not money flowing through
+  the system. League dues, skins pots, and prize payouts are handled out-of-band
+  by the commissioner. This avoids PCI compliance, payment processor
+  integrations, tax reporting, gambling regulations, and money transmission
+  licensing.
+
 ## Post-MVP (Do Not Build Yet — Design For)
 - Auto-generated pairings
 - GHIN handicap integration
@@ -87,8 +94,15 @@ Season standings are derived from weekly match results. The standings calculatio
 must remain decoupled from the weekly scoring format so playoff logic and
 alternative season structures can be layered on later.
 
+### Authentication
+Auth is abstracted behind an interface so the provider can be swapped without
+touching domain code. Production uses Auth0. A mock provider backs development
+and tests, allowing instant "login as" any seeded golfer without going through
+a real auth flow. Configuration selects the provider at startup.
+
 ## Development Philosophy
 - MVP-first, iterative feature additions via discrete OpenSpec proposals
 - Each extension point treated as an interface, not an implementation
 - Long-term maintainability over short-term speed
 - Super admin and course setup handled via SQL until a UI is justified
+- The data model in /docs/data-model.md is the canonical reference. Any proposal that adds, removes, or changes entities must update this doc as part of its tasks.

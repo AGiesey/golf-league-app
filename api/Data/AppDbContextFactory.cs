@@ -10,6 +10,7 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=designtime;Username=designtime;Password=designtime")
+            .UseSnakeCaseNamingConvention()
             .Options;
         return new AppDbContext(options);
     }
