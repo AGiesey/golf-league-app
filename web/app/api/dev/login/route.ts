@@ -16,8 +16,10 @@ export async function POST(request: Request) {
     return new Response(null, { status: apiRes.status });
   }
 
+  const { token } = (await apiRes.json()) as { token: string };
+
   const cookieStore = await cookies();
-  cookieStore.set("mock-golfer-id", body.golferId, {
+  cookieStore.set("app-token", token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

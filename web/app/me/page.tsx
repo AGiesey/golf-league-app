@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { getAccessToken } from "@/lib/auth";
+import { apiFetchAuthenticated, ApiError } from "@/lib/api";
 
 interface Membership {
   leagueName: string;
@@ -16,46 +17,60 @@ interface MeResponse {
   memberships: Membership[];
 }
 
-const API_URL =
-  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
-
 export default async function MePage() {
   await connection();
 
-  const cookieStore = await cookies();
-  const mockGolferId = cookieStore.get("mock-golfer-id")?.value;
+  const token = await getAccessToken().catch(() => null);
+  if (!token) redirect("/login");
 
-  const res = await fetch(`${API_URL}/me`, {
-    cache: "no-store",
-    headers: mockGolferId
-      ? { Cookie: `mock-golfer-id=${mockGolferId}` }
-      : {},
-  });
+  try {
+    const golfer = await apiFetchAuthenticated<MeResponse>("/me", token, {
+      cache: "no-store",
+    });
 
-  if (res.status === 401) {
-    redirect("/dev/login");
+    return (
+      <main>
+        <h1>
+          {golfer.firstName} {golfer.lastName}
+        </h1>
+        <p>{golfer.course.name}</p>
+        <h2>League Memberships</h2>
+        {golfer.memberships.length === 0 ? (
+          <p>No active memberships.</p>
+        ) : (
+          <ul>
+            {golfer.memberships.map((m, i) => (
+              <li key={i}>
+                {m.leagueName} — {m.seasonYear}
+              </li>
+            ))}
+          </ul>
+        )}
+        <a href="/api/auth/logout">Log out</a>
+      </main>
+    );
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.status === 401) redirect("/login");
+
+      if (err.status === 403) {
+        let email = "";
+        try {
+          const body = JSON.parse(err.body) as { email?: string };
+          email = body.email ?? "";
+        } catch {
+          // ignore parse error
+        }
+        return (
+          <main>
+            <p>
+              Account not registered at this course — contact your commissioner.
+              {email && ` (${email})`}
+            </p>
+          </main>
+        );
+      }
+    }
+    redirect("/login");
   }
-
-  const golfer: MeResponse = await res.json();
-
-  return (
-    <main>
-      <h1>
-        {golfer.firstName} {golfer.lastName}
-      </h1>
-      <p>{golfer.course.name}</p>
-      <h2>League Memberships</h2>
-      {golfer.memberships.length === 0 ? (
-        <p>No active memberships.</p>
-      ) : (
-        <ul>
-          {golfer.memberships.map((m, i) => (
-            <li key={i}>
-              {m.leagueName} — {m.seasonYear}
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
-  );
 }

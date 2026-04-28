@@ -88,9 +88,8 @@ VALUES (
 -- ============================================================
 -- Golfers
 -- ============================================================
--- external_auth_id is set to the golfer's own UUID for mock auth.
--- The MockAuthProvider returns the cookie value as ExternalAuthId,
--- so seeded golfers must have external_auth_id = their own id.
+-- external_auth_id is NULL at seed time. On first login the API links the golfer
+-- by matching email + course_id and writes the JWT sub value (e.g. mock|{uuid}).
 INSERT INTO golfers (id, course_id, first_name, last_name, email, external_auth_id, created_at, updated_at) VALUES
     (
         '10000000-0000-0000-0000-000000000001',
@@ -98,7 +97,7 @@ INSERT INTO golfers (id, course_id, first_name, last_name, email, external_auth_
         'Alice',
         'Anderson',
         'alice@example.com',
-        '10000000-0000-0000-0000-000000000001',
+        NULL,
         NOW(),
         NOW()
     ),
@@ -108,7 +107,7 @@ INSERT INTO golfers (id, course_id, first_name, last_name, email, external_auth_
         'Bob',
         'Baker',
         'bob@example.com',
-        '10000000-0000-0000-0000-000000000002',
+        NULL,
         NOW(),
         NOW()
     );

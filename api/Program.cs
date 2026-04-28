@@ -22,13 +22,55 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials()));
 
+// Options
+builder.Services.Configure<Auth0Options>(builder.Configuration.GetSection("Auth:Auth0"));
+builder.Services.Configure<MockAuthOptions>(builder.Configuration.GetSection("Auth:Mock"));
+builder.Services.Configure<AppOptions>(builder.Configuration.GetSection("App"));
+
 // Auth provider
-var authProvider = builder.Configuration["AUTH_PROVIDER"] ?? "mock";
-if (authProvider == "auth0")
-    throw new InvalidOperationException("AUTH_PROVIDER=auth0 is not yet implemented. Set AUTH_PROVIDER=mock or leave it unset.");
-builder.Services.AddScoped<IAuthProvider, MockAuthProvider>();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+
+var authProvider = builder.Configuration["Auth:Provider"] ?? "mock";
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<MockAuthProvider>();
+    builder.Services.AddScoped<IAuthProvider>(sp => sp.GetRequiredService<MockAuthProvider>());
+}
+else if (authProvider.Equals("auth0", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IAuthProvider, Auth0AuthProvider>();
+}
+else
+{
+    throw new InvalidOperationException($"Unknown Auth:Provider value '{authProvider}'. Valid values: mock, auth0.");
+}
 
 var app = builder.Build();
+
+// Startup validation — production guard
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase) &&
+    app.Environment.IsProduction())
+{
+    throw new InvalidOperationException(
+        "Auth:Provider=mock cannot be used in the Production environment. Configure Auth:Provider=auth0.");
+}
+
+// Startup validation — Auth0 requires Domain and Audience
+if (authProvider.Equals("auth0", StringComparison.OrdinalIgnoreCase))
+{
+    var domain = builder.Configuration["Auth:Auth0:Domain"];
+    var audience = builder.Configuration["Auth:Auth0:Audience"];
+    if (string.IsNullOrWhiteSpace(domain))
+        throw new InvalidOperationException("Auth:Auth0:Domain is required when Auth:Provider=auth0.");
+    if (string.IsNullOrWhiteSpace(audience))
+        throw new InvalidOperationException("Auth:Auth0:Audience is required when Auth:Provider=auth0.");
+}
+
+// Startup validation — DefaultCourseId required and must be a valid GUID
+var defaultCourseIdRaw = builder.Configuration["App:DefaultCourseId"];
+if (string.IsNullOrWhiteSpace(defaultCourseIdRaw) || !Guid.TryParse(defaultCourseIdRaw, out _))
+    throw new InvalidOperationException("App:DefaultCourseId is required and must be a valid GUID.");
 
 // Run EF Core migrations on startup
 using (var scope = app.Services.CreateScope())
@@ -44,7 +86,7 @@ app.UseMiddleware<GolferContextMiddleware>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 // Dev endpoints — only registered in mock mode
-if (authProvider == "mock")
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase))
 {
     app.MapGet("/dev/golfers", async (AppDbContext db) =>
     {
@@ -56,19 +98,18 @@ if (authProvider == "mock")
         return Results.Ok(golfers);
     });
 
-    app.MapPost("/dev/login", async (HttpContext ctx, DevLoginRequest req, AppDbContext db) =>
+    app.MapPost("/dev/login", async (DevLoginRequest req, MockAuthProvider mockAuth) =>
     {
-        var golfer = await db.Golfers.FindAsync(req.GolferId);
-        if (golfer is null || golfer.ArchivedAt != null)
-            return Results.NotFound();
-
-        ctx.Response.Cookies.Append("mock-golfer-id", golfer.Id.ToString(), new CookieOptions
+        string token;
+        try
         {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
-        return Results.Ok();
+            token = await mockAuth.IssueTokenAsync(req.GolferId);
+        }
+        catch (ArgumentException ex) when (ex.ParamName == "golferId")
+        {
+            return Results.NotFound();
+        }
+        return Results.Ok(new { token });
     });
 }
 
@@ -77,7 +118,7 @@ app.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
 {
     var golfer = ctx.RequireGolfer();
     if (golfer is null)
-        return Results.Unauthorized();
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
 
     var memberships = await db.LeagueMemberships
         .Where(m => m.GolferId == golfer.Id && m.ArchivedAt == null && m.Season.ArchivedAt == null)
