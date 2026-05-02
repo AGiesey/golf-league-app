@@ -6,6 +6,7 @@ let _client: Auth0Client | undefined;
 export function getAuth0Client(): Auth0Client {
   _client ??= new Auth0Client({
     logoutStrategy: "v2",
+    signInReturnToPath: "/me",
     authorizationParameters: {
       audience: process.env.AUTH0_AUDIENCE,
       scope: "openid profile email",
