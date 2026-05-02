@@ -3,11 +3,14 @@
 -- Run this script against the running database to bootstrap a course, league,
 -- season, and golfer accounts for local development.
 --
--- Usage:
+-- Usage (clean database only — will fail on duplicate keys if already seeded):
 --   docker exec -i golf-league-app-postgres-1 psql -U golf -d golfleague < docs/seed.sql
 --
 -- You can also pipe it in from the project root:
 --   cat docs/seed.sql | docker exec -i golf-league-app-postgres-1 psql -U golf -d golfleague
+--
+-- To re-seed golfers only (e.g. after clearing golfers/memberships manually):
+--   Start from the Golfers section below
 
 BEGIN;
 
@@ -89,14 +92,14 @@ VALUES (
 -- Golfers
 -- ============================================================
 -- external_auth_id is NULL at seed time. On first login the API links the golfer
--- by matching email + course_id and writes the JWT sub value (e.g. mock|{uuid}).
+-- by matching email + course_id and writes the JWT sub value (e.g. auth0|{id}).
 INSERT INTO golfers (id, course_id, first_name, last_name, email, external_auth_id, created_at, updated_at) VALUES
     (
         '10000000-0000-0000-0000-000000000001',
         'a0000000-0000-0000-0000-000000000001',
-        'Alice',
-        'Anderson',
-        'alice@example.com',
+        'Adam',
+        'Giesey',
+        'adamgiesey@gmail.com',
         NULL,
         NOW(),
         NOW()
@@ -104,9 +107,69 @@ INSERT INTO golfers (id, course_id, first_name, last_name, email, external_auth_
     (
         '10000000-0000-0000-0000-000000000002',
         'a0000000-0000-0000-0000-000000000001',
-        'Bob',
-        'Baker',
-        'bob@example.com',
+        'Chris',
+        'Calloway',
+        'glf.chris.calloway@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000003',
+        'a0000000-0000-0000-0000-000000000001',
+        'Dana',
+        'Fairway',
+        'glf.dana.fairway@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000004',
+        'a0000000-0000-0000-0000-000000000001',
+        'Evan',
+        'Greenberg',
+        'glf.evan.greenberg@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000005',
+        'a0000000-0000-0000-0000-000000000001',
+        'Fiona',
+        'Birdie',
+        'glf.fiona.birdie@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000006',
+        'a0000000-0000-0000-0000-000000000001',
+        'Gary',
+        'Wedge',
+        'glf.gary.wedge@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000007',
+        'a0000000-0000-0000-0000-000000000001',
+        'Holly',
+        'Ironwood',
+        'glf.holly.ironwood@yopmail.com',
+        NULL,
+        NOW(),
+        NOW()
+    ),
+    (
+        '10000000-0000-0000-0000-000000000008',
+        'a0000000-0000-0000-0000-000000000001',
+        'Ian',
+        'Putt',
+        'glf.ian.putt@yopmail.com',
         NULL,
         NOW(),
         NOW()
@@ -127,6 +190,54 @@ INSERT INTO league_memberships (id, golfer_id, season_id, is_commissioner, creat
     (
         '20000000-0000-0000-0000-000000000002',
         '10000000-0000-0000-0000-000000000002',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000003',
+        '10000000-0000-0000-0000-000000000003',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000004',
+        '10000000-0000-0000-0000-000000000004',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000005',
+        '10000000-0000-0000-0000-000000000005',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000006',
+        '10000000-0000-0000-0000-000000000006',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000007',
+        '10000000-0000-0000-0000-000000000007',
+        'f0000000-0000-0000-0000-000000000001',
+        false,
+        NOW(),
+        NOW()
+    ),
+    (
+        '20000000-0000-0000-0000-000000000008',
+        '10000000-0000-0000-0000-000000000008',
         'f0000000-0000-0000-0000-000000000001',
         false,
         NOW(),
