@@ -5,6 +5,7 @@ let _client: Auth0Client | undefined;
 // Lazy singleton — only constructed when actually called, avoiding startup errors in mock mode.
 export function getAuth0Client(): Auth0Client {
   _client ??= new Auth0Client({
+    logoutStrategy: "v2",
     authorizationParameters: {
       audience: process.env.AUTH0_AUDIENCE,
       scope: "openid profile email",
