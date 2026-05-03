@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { Shell } from "@/components/layout/Shell";
 import { Toaster } from "@/components/ui/sonner";
 
 // Inter loaded via next/font — inlined at build time, no runtime external request.
@@ -27,7 +26,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <Toaster />
-          <Shell>{children}</Shell>
+          {children}
         </ThemeProvider>
       </body>
     </html>
