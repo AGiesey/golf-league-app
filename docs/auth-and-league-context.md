@@ -154,8 +154,12 @@ LeagueContext {
   leagueId
   courseId
   isCommissioner
+  leagueName
+  seasonYear
 }
 ```
+
+`leagueName` and `seasonYear` are denormalised onto the context for display — the dashboard renders them directly without a second lookup.
 
 This is the implicit scope of every page render and API call.
 
@@ -195,14 +199,16 @@ re-validation determines on each request.
 
 ## Switching leagues mid-session
 
-A "switch league" affordance in the app shell allows a user with
-multiple memberships to change context without logging out. The flow:
+> **Not yet built.** The picker and cookie mechanism are in place; the
+> app shell UI to trigger a mid-session switch is planned but not
+> implemented.
 
-1. User clicks switch league
-2. Show the picker (same component as Step 4)
-3. User selects a different membership
-4. Update the cookie
-5. Rebuild the context on the next request
+The intended flow:
+
+1. User clicks a "switch league" control in the app shell
+2. They are sent to `/pick-league`, which renders the full candidate list
+3. Selecting a membership posts to `/api/context/select`, which updates
+   the `active_membership_id` cookie and redirects to `/dashboard`
 
 No re-authentication. No data preservation across the switch — each
 context is its own scope.
