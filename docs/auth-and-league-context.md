@@ -61,7 +61,7 @@ flowchart TD
   Picker --> UserChooses[User chooses]
   AutoSelect --> BuildContext[Build league context]
   UserChooses --> BuildContext
-  BuildContext --> Dashboard[Land on dashboard]
+  BuildContext --> Dashboard[Land on /dashboard]
   Dashboard --> CommissionerCheck{Is user a<br/>commissioner?}
   CommissionerCheck -->|No| GolferView[Golfer nav only]
   CommissionerCheck -->|Yes| CommissionerView[Golfer nav +<br/>commissioner link]
@@ -168,10 +168,15 @@ time.
 
 ### Step 6 — Render
 
-The dashboard renders. The app shell uses `isCommissioner` from the
-context to decide whether to show the `/commissioner` nav link. This is
-purely a UI concern — see `authorization.md` for what actually enforces
-access to commissioner routes.
+The user lands on `/dashboard`. The dashboard server component resolves
+league context on each render: it reads the `active_membership_id`
+cookie as a hint, re-validates it against the database, and either
+renders the league name, season year, and commissioner badge, or
+redirects to `/pick-league` (multiple candidates), `/me` (no leagues),
+or `/login` (unauthenticated). The app shell uses `isCommissioner` from
+the context to decide whether to show the `/commissioner` nav link. This
+is purely a UI concern — see `authorization.md` for what actually
+enforces access to commissioner routes.
 
 ## Persistence of the picker choice
 

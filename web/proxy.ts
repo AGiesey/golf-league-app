@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 const provider = process.env.AUTH_PROVIDER ?? "mock";
-const PROTECTED_PATHS = ["/me"];
+const PROTECTED_PATHS = ["/me", "/dashboard", "/pick-league"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = new URL(request.url);
@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
     if (pathname === "/" || pathname === "/login") {
       const session = await client.getSession(request);
       if (session) {
-        return Response.redirect(new URL("/me", request.url));
+        return Response.redirect(new URL("/dashboard", request.url));
       }
       if (pathname === "/") {
         return Response.redirect(new URL("/login", request.url));
@@ -27,8 +27,10 @@ export async function proxy(request: NextRequest) {
   const cookieHeader = request.headers.get("cookie") ?? "";
   const hasToken = cookieHeader.split(";").some((c) => c.trim().startsWith("app-token="));
 
-  if (pathname === "/" && !hasToken) {
-    return Response.redirect(new URL("/dev/login", request.url));
+  if (pathname === "/") {
+    return Response.redirect(
+      new URL(hasToken ? "/dashboard" : "/dev/login", request.url)
+    );
   }
 
   const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));

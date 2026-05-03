@@ -113,21 +113,12 @@ if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase))
     });
 }
 
-// GET /me
-app.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
+// GET /me — profile only
+app.MapGet("/me", (HttpContext ctx) =>
 {
     var golfer = ctx.RequireGolfer();
     if (golfer is null)
         return Results.Json(new { error = "missing_token" }, statusCode: 401);
-
-    var memberships = await db.LeagueMemberships
-        .Where(m => m.GolferId == golfer.Id && m.ArchivedAt == null && m.Season.ArchivedAt == null)
-        .Select(m => new
-        {
-            leagueName = m.Season.League.Name,
-            seasonYear = m.Season.Year
-        })
-        .ToListAsync();
 
     return Results.Ok(new
     {
@@ -135,8 +126,84 @@ app.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
         firstName = golfer.FirstName,
         lastName = golfer.LastName,
         email = golfer.Email,
-        course = new { name = golfer.Course.Name },
-        memberships
+        course = new { name = golfer.Course.Name }
+    });
+});
+
+// GET /context — resolve league context for the authenticated golfer
+app.MapGet("/context", async (HttpContext ctx, AppDbContext db, Guid? membershipId) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var all = await db.LeagueMemberships
+        .Where(m => m.GolferId == golfer.Id && m.ArchivedAt == null && m.Season.ArchivedAt == null)
+        .Select(m => new
+        {
+            m.Id,
+            m.IsCommissioner,
+            m.SeasonId,
+            LeagueId = m.Season.LeagueId,
+            CourseId = m.Season.League.CourseId,
+            LeagueName = m.Season.League.Name,
+            SeasonYear = m.Season.Year,
+            m.Season.StartDate,
+            m.Season.EndDate
+        })
+        .ToListAsync();
+
+    // Active season first; fall back to most recently ended non-archived season
+    var activeCandidates = all.Where(m => m.StartDate <= today && m.EndDate >= today).ToList();
+    var candidates = activeCandidates.Count > 0
+        ? activeCandidates
+        : all.Where(m => m.EndDate < today)
+             .OrderByDescending(m => m.EndDate)
+             .GroupBy(m => m.EndDate)
+             .FirstOrDefault()
+             ?.ToList() ?? [];
+
+    if (candidates.Count == 0)
+        return Results.Ok(new { status = "no_leagues" });
+
+    // Validate optional hint — must belong to this golfer's candidates
+    var hint = membershipId.HasValue
+        ? candidates.FirstOrDefault(c => c.Id == membershipId.Value)
+        : null;
+
+    var resolved = hint ?? (candidates.Count == 1 ? candidates[0] : null);
+
+    if (resolved is not null)
+    {
+        return Results.Ok(new
+        {
+            status = "resolved",
+            context = new
+            {
+                golferId = golfer.Id,
+                leagueMembershipId = resolved.Id,
+                seasonId = resolved.SeasonId,
+                leagueId = resolved.LeagueId,
+                courseId = resolved.CourseId,
+                isCommissioner = resolved.IsCommissioner,
+                leagueName = resolved.LeagueName,
+                seasonYear = resolved.SeasonYear
+            }
+        });
+    }
+
+    return Results.Ok(new
+    {
+        status = "pick_required",
+        memberships = candidates.Select(c => new
+        {
+            id = c.Id,
+            leagueName = c.LeagueName,
+            seasonYear = c.SeasonYear,
+            isCommissioner = c.IsCommissioner
+        })
     });
 });
 

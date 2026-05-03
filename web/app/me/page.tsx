@@ -5,18 +5,11 @@ import { apiFetchAuthenticated, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-
-interface Membership {
-  leagueName: string;
-  seasonYear: number;
-}
 
 interface MeResponse {
   id: string;
@@ -24,7 +17,6 @@ interface MeResponse {
   lastName: string;
   email: string;
   course: { name: string };
-  memberships: Membership[];
 }
 
 export default async function MePage() {
@@ -47,28 +39,6 @@ export default async function MePage() {
             </CardTitle>
             <CardDescription>{golfer.course.name}</CardDescription>
           </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>League Memberships</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {golfer.memberships.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No active memberships.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {golfer.memberships.map((m, i) => (
-                  <li key={i} className="flex items-center justify-between">
-                    <span>{m.leagueName}</span>
-                    <Badge variant="secondary">{m.seasonYear}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
         </Card>
 
         <a
