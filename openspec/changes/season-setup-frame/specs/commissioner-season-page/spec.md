@@ -1,0 +1,53 @@
+## ADDED Requirements
+
+### Requirement: /commissioner/season route
+The system SHALL expose a `/commissioner/season` page accessible only to authenticated users whose active league context has `isCommissioner: true`. Non-commissioners SHALL be redirected to `/dashboard`. Unauthenticated users SHALL be redirected to `/login`.
+
+#### Scenario: Commissioner can access the page
+- **WHEN** an authenticated commissioner navigates to `/commissioner/season`
+- **THEN** the page renders
+
+#### Scenario: Non-commissioner redirected
+- **WHEN** a regular golfer navigates to `/commissioner/season`
+- **THEN** they are redirected to `/dashboard`
+
+#### Scenario: Unauthenticated redirected
+- **WHEN** an unauthenticated user navigates to `/commissioner/season`
+- **THEN** they are redirected to `/login`
+
+### Requirement: Setup status banner
+The page SHALL display a status banner above the tabs. When `SeasonSetupStatus.isComplete` is `true`, the banner SHALL show a success state. When `isComplete` is `false`, the banner SHALL show a checklist of unmet requirements, each displaying its `detail` string.
+
+#### Scenario: Banner shows success when complete
+- **WHEN** `SeasonSetupStatus.isComplete` is `true`
+- **THEN** the banner displays a success indicator
+
+#### Scenario: Banner shows checklist when incomplete
+- **WHEN** `SeasonSetupStatus.isComplete` is `false`
+- **THEN** the banner lists each unmet requirement with its `detail` string
+
+### Requirement: Tabbed layout with completion indicators
+The page SHALL render three tabs — Roster, Teams, Schedule — in that order. Each tab label SHALL display a checkmark indicator when the corresponding requirement `isMet` is `true`, and a warning indicator when `isMet` is `false`. Tab bodies SHALL be empty placeholders until their respective implementation proposals are applied.
+
+#### Scenario: Met tab shows checkmark
+- **WHEN** a requirement's `isMet` is `true`
+- **THEN** the corresponding tab label displays a checkmark indicator
+
+#### Scenario: Unmet tab shows warning
+- **WHEN** a requirement's `isMet` is `false`
+- **THEN** the corresponding tab label displays a warning indicator
+
+#### Scenario: Tab body is a placeholder
+- **WHEN** a commissioner selects any tab
+- **THEN** the tab body renders a placeholder indicating the feature is not yet available
+
+### Requirement: Tab deep-linking via URL parameter
+The active tab SHALL be controlled by a `tab` URL search parameter (`?tab=roster`, `?tab=teams`, `?tab=schedule`). Navigating to `/commissioner/season` without a `tab` parameter SHALL default to the Roster tab.
+
+#### Scenario: URL parameter selects tab
+- **WHEN** the URL is `/commissioner/season?tab=teams`
+- **THEN** the Teams tab is active
+
+#### Scenario: Default tab is Roster
+- **WHEN** the URL is `/commissioner/season` with no tab parameter
+- **THEN** the Roster tab is active
