@@ -87,16 +87,27 @@ Look up the `Golfer` row that corresponds to the authenticated identity.
 Two-stage lookup:
 
 1. **Match by `ExternalAuthId`.** If a `Golfer` row already has this
-   `ExternalAuthId` set, use it.
+   `ExternalAuthId` set, use it. This is the fast path for returning
+   users — one indexed lookup, no further work needed.
 2. **Fall back to email match.** If no row matches by `ExternalAuthId`,
-   look for a `Golfer` with the same email (within any course) whose
-   `ExternalAuthId` is null. If found, stamp the `ExternalAuthId` onto
-   that row and use it.
+   look for a `Golfer` with the same email at the default course. If
+   found, re-stamp `ExternalAuthId` with the current sub and use it.
 
-The email fallback is the **first-login linkage moment**. It allows
-commissioners to pre-provision golfers (creating `Golfer` rows with
-email but no `ExternalAuthId`), and the link happens automatically when
-that golfer signs up via Auth0.
+The email fallback handles two cases:
+
+- **First login** — the golfer was pre-provisioned with no
+  `ExternalAuthId`. The link happens automatically on first sign-in.
+- **Login method change** — the golfer previously logged in via
+  email/password (sub `auth0|xxx`) and now logs in via Google (sub
+  `google-oauth2|xxx`), or vice versa. Auth0 issues a different `sub`
+  per provider; the email fallback finds the existing record and
+  re-stamps it with the new sub. From that point on, the fast path
+  works for the new login method.
+
+Email is the **stable identity anchor** across auth providers.
+`ExternalAuthId` is a cached fast-path lookup that gets updated whenever
+the login method changes. Golfers can switch between any Auth0-supported
+login method (email/password, Google, etc.) without losing their data.
 
 If neither lookup finds a `Golfer`, the user is authenticated but not
 registered at any course. Show an empty "you're not registered to play
@@ -106,13 +117,13 @@ flow.
 
 **Edge cases worth knowing about:**
 
-- A `Golfer` row at multiple courses can match the same email. The email
-  fallback should match all of them and stamp `ExternalAuthId` on each
-  — the same person at multiple courses is one identity but multiple
-  `Golfer` records.
-- If `ExternalAuthId` is already set on a row but doesn't match the
-  current login, that's a different person who happens to share an
-  email. Do **not** overwrite — treat as no match.
+- A `Golfer` row at multiple courses can match the same email. The
+  `ExternalAuthId` fast-path lookup is global (any course); the email
+  fallback is scoped to the default course. A person playing at multiple
+  courses has multiple `Golfer` records, each linked independently.
+- The email fallback trusts Auth0's `email` claim as authoritative.
+  Auth0 verifies emails for social providers (Google etc.) and enforces
+  verification for email/password accounts when configured to do so.
 
 ### Step 3 — Find active LeagueMemberships
 
