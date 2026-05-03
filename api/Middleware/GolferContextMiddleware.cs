@@ -50,7 +50,6 @@ public class GolferContextMiddleware(RequestDelegate next, IOptions<AppOptions> 
                 .FirstOrDefaultAsync(g =>
                     g.Email == authResult.Email &&
                     g.CourseId == _defaultCourseId &&
-                    g.ExternalAuthId == null &&
                     g.ArchivedAt == null);
 
             if (golfer is not null)
