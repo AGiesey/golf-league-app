@@ -2,6 +2,16 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { getAccessToken } from "@/lib/auth";
 import { apiFetchAuthenticated, ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 
 interface Membership {
   leagueName: string;
@@ -29,25 +39,45 @@ export default async function MePage() {
     });
 
     return (
-      <main>
-        <h1>
-          {golfer.firstName} {golfer.lastName}
-        </h1>
-        <p>{golfer.course.name}</p>
-        <h2>League Memberships</h2>
-        {golfer.memberships.length === 0 ? (
-          <p>No active memberships.</p>
-        ) : (
-          <ul>
-            {golfer.memberships.map((m, i) => (
-              <li key={i}>
-                {m.leagueName} — {m.seasonYear}
-              </li>
-            ))}
-          </ul>
-        )}
-        <a href="/api/auth/logout">Log out</a>
-      </main>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">
+              {golfer.firstName} {golfer.lastName}
+            </CardTitle>
+            <CardDescription>{golfer.course.name}</CardDescription>
+          </CardHeader>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>League Memberships</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {golfer.memberships.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No active memberships.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {golfer.memberships.map((m, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span>{m.leagueName}</span>
+                    <Badge variant="secondary">{m.seasonYear}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <a
+          href="/api/auth/logout"
+          className={cn(buttonVariants({ variant: "outline" }), "w-fit")}
+        >
+          Log out
+        </a>
+      </div>
     );
   } catch (err) {
     if (err instanceof ApiError) {
@@ -62,12 +92,12 @@ export default async function MePage() {
           // ignore parse error
         }
         return (
-          <main>
+          <div>
             <p>
               Account not registered at this course — contact your commissioner.
               {email && ` (${email})`}
             </p>
-          </main>
+          </div>
         );
       }
     }
