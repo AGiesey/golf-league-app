@@ -22,13 +22,55 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials()));
 
+// Options
+builder.Services.Configure<Auth0Options>(builder.Configuration.GetSection("Auth:Auth0"));
+builder.Services.Configure<MockAuthOptions>(builder.Configuration.GetSection("Auth:Mock"));
+builder.Services.Configure<AppOptions>(builder.Configuration.GetSection("App"));
+
 // Auth provider
-var authProvider = builder.Configuration["AUTH_PROVIDER"] ?? "mock";
-if (authProvider == "auth0")
-    throw new InvalidOperationException("AUTH_PROVIDER=auth0 is not yet implemented. Set AUTH_PROVIDER=mock or leave it unset.");
-builder.Services.AddScoped<IAuthProvider, MockAuthProvider>();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+
+var authProvider = builder.Configuration["Auth:Provider"] ?? "mock";
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<MockAuthProvider>();
+    builder.Services.AddScoped<IAuthProvider>(sp => sp.GetRequiredService<MockAuthProvider>());
+}
+else if (authProvider.Equals("auth0", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IAuthProvider, Auth0AuthProvider>();
+}
+else
+{
+    throw new InvalidOperationException($"Unknown Auth:Provider value '{authProvider}'. Valid values: mock, auth0.");
+}
 
 var app = builder.Build();
+
+// Startup validation — production guard
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase) &&
+    app.Environment.IsProduction())
+{
+    throw new InvalidOperationException(
+        "Auth:Provider=mock cannot be used in the Production environment. Configure Auth:Provider=auth0.");
+}
+
+// Startup validation — Auth0 requires Domain and Audience
+if (authProvider.Equals("auth0", StringComparison.OrdinalIgnoreCase))
+{
+    var domain = builder.Configuration["Auth:Auth0:Domain"];
+    var audience = builder.Configuration["Auth:Auth0:Audience"];
+    if (string.IsNullOrWhiteSpace(domain))
+        throw new InvalidOperationException("Auth:Auth0:Domain is required when Auth:Provider=auth0.");
+    if (string.IsNullOrWhiteSpace(audience))
+        throw new InvalidOperationException("Auth:Auth0:Audience is required when Auth:Provider=auth0.");
+}
+
+// Startup validation — DefaultCourseId required and must be a valid GUID
+var defaultCourseIdRaw = builder.Configuration["App:DefaultCourseId"];
+if (string.IsNullOrWhiteSpace(defaultCourseIdRaw) || !Guid.TryParse(defaultCourseIdRaw, out _))
+    throw new InvalidOperationException("App:DefaultCourseId is required and must be a valid GUID.");
 
 // Run EF Core migrations on startup
 using (var scope = app.Services.CreateScope())
@@ -44,7 +86,7 @@ app.UseMiddleware<GolferContextMiddleware>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 // Dev endpoints — only registered in mock mode
-if (authProvider == "mock")
+if (authProvider.Equals("mock", StringComparison.OrdinalIgnoreCase))
 {
     app.MapGet("/dev/golfers", async (AppDbContext db) =>
     {
@@ -56,37 +98,27 @@ if (authProvider == "mock")
         return Results.Ok(golfers);
     });
 
-    app.MapPost("/dev/login", async (HttpContext ctx, DevLoginRequest req, AppDbContext db) =>
+    app.MapPost("/dev/login", async (DevLoginRequest req, MockAuthProvider mockAuth) =>
     {
-        var golfer = await db.Golfers.FindAsync(req.GolferId);
-        if (golfer is null || golfer.ArchivedAt != null)
-            return Results.NotFound();
-
-        ctx.Response.Cookies.Append("mock-golfer-id", golfer.Id.ToString(), new CookieOptions
+        string token;
+        try
         {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
-        return Results.Ok();
+            token = await mockAuth.IssueTokenAsync(req.GolferId);
+        }
+        catch (ArgumentException ex) when (ex.ParamName == "golferId")
+        {
+            return Results.NotFound();
+        }
+        return Results.Ok(new { token });
     });
 }
 
-// GET /me
-app.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
+// GET /me — profile only
+app.MapGet("/me", (HttpContext ctx) =>
 {
     var golfer = ctx.RequireGolfer();
     if (golfer is null)
-        return Results.Unauthorized();
-
-    var memberships = await db.LeagueMemberships
-        .Where(m => m.GolferId == golfer.Id && m.ArchivedAt == null && m.Season.ArchivedAt == null)
-        .Select(m => new
-        {
-            leagueName = m.Season.League.Name,
-            seasonYear = m.Season.Year
-        })
-        .ToListAsync();
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
 
     return Results.Ok(new
     {
@@ -94,8 +126,84 @@ app.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
         firstName = golfer.FirstName,
         lastName = golfer.LastName,
         email = golfer.Email,
-        course = new { name = golfer.Course.Name },
-        memberships
+        course = new { name = golfer.Course.Name }
+    });
+});
+
+// GET /context — resolve league context for the authenticated golfer
+app.MapGet("/context", async (HttpContext ctx, AppDbContext db, Guid? membershipId) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var all = await db.LeagueMemberships
+        .Where(m => m.GolferId == golfer.Id && m.ArchivedAt == null && m.Season.ArchivedAt == null)
+        .Select(m => new
+        {
+            m.Id,
+            m.IsCommissioner,
+            m.SeasonId,
+            LeagueId = m.Season.LeagueId,
+            CourseId = m.Season.League.CourseId,
+            LeagueName = m.Season.League.Name,
+            SeasonYear = m.Season.Year,
+            m.Season.StartDate,
+            m.Season.EndDate
+        })
+        .ToListAsync();
+
+    // Active season first; fall back to most recently ended non-archived season
+    var activeCandidates = all.Where(m => m.StartDate <= today && m.EndDate >= today).ToList();
+    var candidates = activeCandidates.Count > 0
+        ? activeCandidates
+        : all.Where(m => m.EndDate < today)
+             .OrderByDescending(m => m.EndDate)
+             .GroupBy(m => m.EndDate)
+             .FirstOrDefault()
+             ?.ToList() ?? [];
+
+    if (candidates.Count == 0)
+        return Results.Ok(new { status = "no_leagues" });
+
+    // Validate optional hint — must belong to this golfer's candidates
+    var hint = membershipId.HasValue
+        ? candidates.FirstOrDefault(c => c.Id == membershipId.Value)
+        : null;
+
+    var resolved = hint ?? (candidates.Count == 1 ? candidates[0] : null);
+
+    if (resolved is not null)
+    {
+        return Results.Ok(new
+        {
+            status = "resolved",
+            context = new
+            {
+                golferId = golfer.Id,
+                leagueMembershipId = resolved.Id,
+                seasonId = resolved.SeasonId,
+                leagueId = resolved.LeagueId,
+                courseId = resolved.CourseId,
+                isCommissioner = resolved.IsCommissioner,
+                leagueName = resolved.LeagueName,
+                seasonYear = resolved.SeasonYear
+            }
+        });
+    }
+
+    return Results.Ok(new
+    {
+        status = "pick_required",
+        memberships = candidates.Select(c => new
+        {
+            id = c.Id,
+            leagueName = c.LeagueName,
+            seasonYear = c.SeasonYear,
+            isCommissioner = c.IsCommissioner
+        })
     });
 });
 

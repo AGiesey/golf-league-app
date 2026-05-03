@@ -28,3 +28,17 @@ export async function apiFetch<T>(
 
   return res.json() as Promise<T>;
 }
+
+export async function apiFetchAuthenticated<T>(
+  path: string,
+  token: string,
+  init?: RequestInit,
+): Promise<T> {
+  return apiFetch<T>(path, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}

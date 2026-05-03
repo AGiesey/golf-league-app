@@ -28,6 +28,7 @@ player management, score entry, standings tracking, and golfer-facing results vi
 - Database creation and EF Core migrations run automatically on API container startup
 - No manual setup steps beyond Docker being installed
 - All date/time values stored in UTC, converted to local time at display
+- MVP assumes single-course deployment per API instance; `App:DefaultCourseId` identifies the course. Multi-course routing is deferred — see the auth0-integration proposal.
 
 ## MVP Scope
 - Course and league data models (set up via SQL at MVP)
