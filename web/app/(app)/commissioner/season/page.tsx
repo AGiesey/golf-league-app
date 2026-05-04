@@ -96,7 +96,12 @@ export default async function CommissionerSeasonPage({
 
       <StatusBanner status={status} />
 
-      <SeasonTabs status={status} activeTab={activeTab} />
+      <SeasonTabs
+        status={status}
+        activeTab={activeTab}
+        membershipId={ctx.context.leagueMembershipId}
+        token={token}
+      />
     </div>
   );
 }

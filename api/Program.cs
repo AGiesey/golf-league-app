@@ -259,6 +259,61 @@ commissioner.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext
     return Results.Ok(status);
 });
 
+// GET /commissioner/season/roster — active members for the season, sorted by last name
+commissioner.MapGet("/season/roster", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var members = await db.LeagueMemberships
+        .Where(m => m.SeasonId == membership.SeasonId && m.ArchivedAt == null)
+        .OrderBy(m => m.Golfer.LastName).ThenBy(m => m.Golfer.FirstName)
+        .Select(m => new
+        {
+            leagueMembershipId = m.Id,
+            golferId = m.GolferId,
+            firstName = m.Golfer.FirstName,
+            lastName = m.Golfer.LastName,
+            email = m.Golfer.Email,
+            handicap = m.Handicap,
+            isCommissioner = m.IsCommissioner
+        })
+        .ToListAsync();
+    return Results.Ok(members);
+});
+
+// PATCH /commissioner/season/roster/{leagueMembershipId}/handicap
+commissioner.MapPatch("/season/roster/{leagueMembershipId}/handicap", async (
+    Guid leagueMembershipId,
+    HandicapUpdateRequest req,
+    HttpContext ctx,
+    AppDbContext db) =>
+{
+    var activeMembership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var target = await db.LeagueMemberships
+        .Include(m => m.Golfer)
+        .FirstOrDefaultAsync(m => m.Id == leagueMembershipId && m.ArchivedAt == null);
+
+    if (target is null)
+        return Results.NotFound();
+
+    if (target.SeasonId != activeMembership.SeasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    target.Handicap = req.Handicap;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        leagueMembershipId = target.Id,
+        golferId = target.GolferId,
+        firstName = target.Golfer.FirstName,
+        lastName = target.Golfer.LastName,
+        email = target.Golfer.Email,
+        handicap = target.Handicap,
+        isCommissioner = target.IsCommissioner
+    });
+});
+
 app.Run();
 
 static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db)
@@ -295,5 +350,6 @@ static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db
 }
 
 record DevLoginRequest(Guid GolferId);
+record HandicapUpdateRequest(decimal? Handicap);
 record SetupRequirement(string Name, bool IsMet, string Detail);
 record SetupStatus(bool IsComplete, SetupRequirement[] Requirements);

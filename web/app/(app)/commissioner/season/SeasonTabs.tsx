@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tabs";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
 import type { SeasonSetupStatus } from "@/lib/commissioner";
+import { RosterTable } from "./RosterTable";
 
 const TAB_KEYS = ["roster", "teams", "schedule"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -22,9 +23,11 @@ const TAB_LABELS: Record<TabKey, string> = {
 interface SeasonTabsProps {
   status: SeasonSetupStatus;
   activeTab: TabKey;
+  membershipId: string;
+  token: string;
 }
 
-export function SeasonTabs({ status, activeTab }: SeasonTabsProps) {
+export function SeasonTabs({ status, activeTab, membershipId, token }: SeasonTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -56,9 +59,7 @@ export function SeasonTabs({ status, activeTab }: SeasonTabsProps) {
       </TabsList>
 
       <TabsContent value="roster" className="pt-6">
-        <p className="text-sm text-muted-foreground">
-          Roster management is not yet available.
-        </p>
+        <RosterTable membershipId={membershipId} token={token} />
       </TabsContent>
       <TabsContent value="teams" className="pt-6">
         <p className="text-sm text-muted-foreground">
