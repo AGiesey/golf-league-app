@@ -11,6 +11,10 @@ public class WeekConfiguration : IEntityTypeConfiguration<Week>
         builder.HasKey(w => w.Id);
         builder.Property(w => w.Id).HasDefaultValueSql("gen_random_uuid()");
 
+        builder.Property(w => w.Type)
+               .HasConversion<string>()
+               .HasDefaultValue(WeekType.Regular);
+
         builder.HasOne(w => w.Season)
                .WithMany(s => s.Weeks)
                .HasForeignKey(w => w.SeasonId)

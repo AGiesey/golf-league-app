@@ -418,6 +418,24 @@ commissioner.MapPost("/season/teams", async (CreateTeamRequest req, HttpContext 
     });
 });
 
+// GET /commissioner/season/schedule — weeks for the season ordered by week number
+commissioner.MapGet("/season/schedule", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var weeks = await db.Weeks
+        .Where(w => w.SeasonId == membership.SeasonId)
+        .OrderBy(w => w.WeekNumber)
+        .Select(w => new
+        {
+            id = w.Id,
+            weekNumber = w.WeekNumber,
+            startDate = w.StartDate,
+            type = w.Type.ToString()
+        })
+        .ToListAsync();
+    return Results.Ok(weeks);
+});
+
 // DELETE /commissioner/season/teams/{teamId} — disband a team
 commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext ctx, AppDbContext db) =>
 {

@@ -11,6 +11,7 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import type { SeasonSetupStatus } from "@/lib/commissioner";
 import { RosterTable } from "./RosterTable";
 import { TeamsTab } from "./TeamsTab";
+import { ScheduleTab } from "./ScheduleTab";
 
 const TAB_KEYS = ["roster", "teams", "schedule"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -66,9 +67,7 @@ export function SeasonTabs({ status, activeTab, membershipId, token }: SeasonTab
         <TeamsTab membershipId={membershipId} token={token} />
       </TabsContent>
       <TabsContent value="schedule" className="pt-6">
-        <p className="text-sm text-muted-foreground">
-          Schedule generation is not yet available.
-        </p>
+        <ScheduleTab membershipId={membershipId} token={token} />
       </TabsContent>
     </Tabs>
   );
