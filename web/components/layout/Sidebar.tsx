@@ -43,7 +43,7 @@ function NavList({ isCommissioner }: { isCommissioner: boolean }) {
     { label: "Dashboard", href: "/dashboard" },
     { label: "My Profile", href: "/me" },
     { label: "Scores / Rounds", disabled: true },
-    ...(isCommissioner ? [{ label: "Commissioner", href: "/commissioner" }] : []),
+    ...(isCommissioner ? [{ label: "Season", href: "/commissioner/season" }] : []),
   ];
 
   return (

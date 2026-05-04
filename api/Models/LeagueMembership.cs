@@ -13,4 +13,5 @@ public class LeagueMembership
 
     public Golfer Golfer { get; set; } = null!;
     public Season Season { get; set; } = null!;
+    public TeamMembership? TeamMembership { get; set; }
 }

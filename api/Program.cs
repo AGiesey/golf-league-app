@@ -2,6 +2,7 @@ using GolfLeagueApi.Auth;
 using GolfLeagueApi.Data;
 using GolfLeagueApi.Extensions;
 using GolfLeagueApi.Middleware;
+using GolfLeagueApi.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -207,6 +208,92 @@ app.MapGet("/context", async (HttpContext ctx, AppDbContext db, Guid? membership
     });
 });
 
+// GET /season/setup-status — accessible to any authenticated member, returns isComplete only
+app.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var status = await ComputeSetupStatus(membership.SeasonId, db);
+    return Results.Ok(new { isComplete = status.IsComplete });
+});
+
+// Commissioner route group — requires X-Membership-Id header for a commissioner membership
+var commissioner = app.MapGroup("/commissioner").AddEndpointFilter(async (ctx, next) =>
+{
+    var golfer = ctx.HttpContext.Items["Golfer"] as Golfer;
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.HttpContext.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var db = ctx.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+    var membership = await db.LeagueMemberships
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null || !membership.IsCommissioner)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    ctx.HttpContext.Items["ActiveMembership"] = membership;
+    return await next(ctx);
+});
+
+// GET /commissioner/season/setup-status — full SeasonSetupStatus for commissioners
+commissioner.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var status = await ComputeSetupStatus(membership.SeasonId, db);
+    return Results.Ok(status);
+});
+
 app.Run();
 
+static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db)
+{
+    var memberCount = await db.LeagueMemberships
+        .CountAsync(m => m.SeasonId == seasonId && m.ArchivedAt == null);
+
+    var rosterMet = memberCount >= 2;
+    var rosterDetail = rosterMet
+        ? $"{memberCount} members added"
+        : $"{memberCount} member{(memberCount == 1 ? "" : "s")} added — need at least 2";
+
+    var unassigned = await db.LeagueMemberships
+        .Where(m => m.SeasonId == seasonId && m.ArchivedAt == null && m.TeamMembership == null)
+        .Select(m => m.Golfer.FirstName + " " + m.Golfer.LastName)
+        .ToListAsync();
+    var teamsMet = unassigned.Count == 0;
+    var teamsDetail = teamsMet
+        ? "All members assigned to a team"
+        : string.Join(", ", unassigned) + (unassigned.Count == 1 ? " is" : " are") + " not on a team";
+
+    var weekCount = await db.Weeks.CountAsync(w => w.SeasonId == seasonId);
+    var scheduleMet = weekCount > 0;
+    var scheduleDetail = weekCount == 1 ? "1 week scheduled" : $"{weekCount} weeks scheduled";
+
+    var requirements = new[]
+    {
+        new SetupRequirement("Roster", rosterMet, rosterDetail),
+        new SetupRequirement("Teams", teamsMet, teamsDetail),
+        new SetupRequirement("Schedule", scheduleMet, scheduleDetail),
+    };
+
+    return new SetupStatus(requirements.All(r => r.IsMet), requirements);
+}
+
 record DevLoginRequest(Guid GolferId);
+record SetupRequirement(string Name, bool IsMet, string Detail);
+record SetupStatus(bool IsComplete, SetupRequirement[] Requirements);

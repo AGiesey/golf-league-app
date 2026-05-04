@@ -13,4 +13,6 @@ public class Season
 
     public League League { get; set; } = null!;
     public ICollection<LeagueMembership> Memberships { get; set; } = [];
+    public ICollection<Team> Teams { get; set; } = [];
+    public ICollection<Week> Weeks { get; set; } = [];
 }
