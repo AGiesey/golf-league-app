@@ -323,7 +323,7 @@ commissioner.MapGet("/season/teams", async (HttpContext ctx, AppDbContext db) =>
     var isLocked = await db.Weeks.AnyAsync(w => w.SeasonId == membership.SeasonId && w.StartDate <= today);
 
     var teams = await db.Teams
-        .Where(t => t.SeasonId == membership.SeasonId)
+        .Where(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
         .OrderBy(t => t.Name)
         .Select(t => new
         {
@@ -377,7 +377,7 @@ commissioner.MapPost("/season/teams", async (CreateTeamRequest req, HttpContext 
     if (members.Any(m => m.TeamMembership != null))
         return Results.Json(new { error = "member_already_assigned" }, statusCode: 409);
 
-    var teamCount = await db.Teams.CountAsync(t => t.SeasonId == membership.SeasonId);
+    var teamCount = await db.Teams.CountAsync(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
     var teamName = $"Team {teamCount + 1}";
 
     var now = DateTime.UtcNow;
@@ -443,7 +443,7 @@ commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext
 
     var team = await db.Teams
         .Include(t => t.TeamMemberships)
-        .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == membership.SeasonId);
+        .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
 
     if (team is null)
         return Results.NotFound();
@@ -454,7 +454,8 @@ commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext
         return Results.Json(new { error = "teams_locked" }, statusCode: 409);
 
     db.TeamMemberships.RemoveRange(team.TeamMemberships);
-    db.Teams.Remove(team);
+    team.ArchivedAt = DateTime.UtcNow;
+    team.UpdatedAt = DateTime.UtcNow;
     await db.SaveChangesAsync();
 
     return Results.NoContent();
