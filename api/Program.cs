@@ -229,6 +229,82 @@ app.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
     return Results.Ok(new { isComplete = status.IsComplete });
 });
 
+// GET /season/my-matchup-summary — returns the member's upcoming and most recent matchup
+app.MapGet("/season/my-matchup-summary", async (HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .Include(m => m.TeamMembership)
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    if (membership.TeamMembership is null)
+        return Results.Ok(new { upcoming = (object?)null, previous = (object?)null });
+
+    var teamId = membership.TeamMembership.TeamId;
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var upcomingRaw = await db.Matchups
+        .Where(m => (m.TeamAId == teamId || m.TeamBId == teamId) && m.Week.SeasonId == membership.SeasonId && m.Week.StartDate >= today)
+        .OrderBy(m => m.Week.StartDate)
+        .Select(m => new
+        {
+            weekNumber = m.Week.WeekNumber,
+            startDate = m.Week.StartDate,
+            teamAId = m.TeamAId,
+            teamAName = m.TeamA.Name,
+            teamAMembers = m.TeamA.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+            teamBName = m.TeamB.Name,
+            teamBMembers = m.TeamB.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+        })
+        .FirstOrDefaultAsync();
+
+    var previousRaw = await db.Matchups
+        .Where(m => (m.TeamAId == teamId || m.TeamBId == teamId) && m.Week.SeasonId == membership.SeasonId && m.Week.StartDate < today)
+        .OrderByDescending(m => m.Week.StartDate)
+        .Select(m => new
+        {
+            weekNumber = m.Week.WeekNumber,
+            startDate = m.Week.StartDate,
+            teamAId = m.TeamAId,
+            teamAName = m.TeamA.Name,
+            teamAMembers = m.TeamA.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+            teamBName = m.TeamB.Name,
+            teamBMembers = m.TeamB.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+        })
+        .FirstOrDefaultAsync();
+
+    var iAmUpcomingTeamA = upcomingRaw?.teamAId == teamId;
+    var upcoming = upcomingRaw is null ? null : (object)new
+    {
+        weekNumber = upcomingRaw.weekNumber,
+        startDate = upcomingRaw.startDate,
+        myTeam = new { name = iAmUpcomingTeamA ? upcomingRaw.teamAName : upcomingRaw.teamBName, members = iAmUpcomingTeamA ? upcomingRaw.teamAMembers : upcomingRaw.teamBMembers },
+        opponent = new { name = iAmUpcomingTeamA ? upcomingRaw.teamBName : upcomingRaw.teamAName, members = iAmUpcomingTeamA ? upcomingRaw.teamBMembers : upcomingRaw.teamAMembers },
+    };
+
+    var iAmPreviousTeamA = previousRaw?.teamAId == teamId;
+    var previous = previousRaw is null ? null : (object)new
+    {
+        weekNumber = previousRaw.weekNumber,
+        startDate = previousRaw.startDate,
+        myTeam = new { name = iAmPreviousTeamA ? previousRaw.teamAName : previousRaw.teamBName, members = iAmPreviousTeamA ? previousRaw.teamAMembers : previousRaw.teamBMembers },
+        opponent = new { name = iAmPreviousTeamA ? previousRaw.teamBName : previousRaw.teamAName, members = iAmPreviousTeamA ? previousRaw.teamBMembers : previousRaw.teamAMembers },
+        hasResults = false, // TODO: replace with Round existence check when score entry lands
+    };
+
+    return Results.Ok(new { upcoming, previous });
+});
+
 // Commissioner route group — requires X-Membership-Id header for a commissioner membership
 var commissioner = app.MapGroup("/commissioner").AddEndpointFilter(async (ctx, next) =>
 {
