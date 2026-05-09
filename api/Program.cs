@@ -512,6 +512,27 @@ commissioner.MapGet("/season/schedule", async (HttpContext ctx, AppDbContext db)
     return Results.Ok(weeks);
 });
 
+// PATCH /commissioner/season/teams/{teamId}/name — rename a team (allowed before and after season start)
+commissioner.MapPatch("/season/teams/{teamId}/name", async (Guid teamId, RenameTeamRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (string.IsNullOrWhiteSpace(req.Name))
+        return Results.Json(new { error = "name_required" }, statusCode: 422);
+
+    var team = await db.Teams
+        .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
+
+    if (team is null)
+        return Results.NotFound();
+
+    team.Name = req.Name.Trim();
+    team.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { teamId = team.Id, name = team.Name });
+});
+
 // DELETE /commissioner/season/teams/{teamId} — disband a team
 commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext ctx, AppDbContext db) =>
 {
@@ -844,6 +865,7 @@ static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db
 record DevLoginRequest(Guid GolferId);
 record HandicapUpdateRequest(decimal? Handicap);
 record CreateTeamRequest(Guid[] MemberIds);
+record RenameTeamRequest(string Name);
 record CreateMatchupRequest(Guid WeekId, Guid TeamAId, Guid TeamBId);
 record UpdateMatchupRequest(Guid TeamAId, Guid TeamBId);
 record SetupRequirement(string Name, bool IsMet, string Detail);
