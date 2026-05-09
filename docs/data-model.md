@@ -67,7 +67,7 @@ erDiagram
     uuid id PK
     uuid course_id FK
     string name
-    string day_of_week
+    int day_of_week
     int default_round_length
   }
   LEAGUECONFIGURATION {
@@ -107,7 +107,7 @@ erDiagram
     uuid id PK
     uuid season_id FK
     int week_number
-    date date
+    date start_date
     string type
   }
   MATCHUP {

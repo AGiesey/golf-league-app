@@ -1,11 +1,4 @@
-## ADDED Requirements
-
-### Requirement: Dashboard route
-The system SHALL expose a `/dashboard` route accessible only to authenticated users. Unauthenticated requests SHALL be redirected to `/login`.
-
-#### Scenario: Unauthenticated access redirected
-- **WHEN** a user with no active session navigates to `/dashboard`
-- **THEN** they are redirected to `/login`
+## MODIFIED Requirements
 
 ### Requirement: Context resolution on dashboard render
 On each render, the `/dashboard` page SHALL call `GET /api/context` with the `active_membership_id` cookie value as the hint. The page SHALL branch on the response status.
@@ -21,6 +14,8 @@ On each render, the `/dashboard` page SHALL call `GET /api/context` with the `ac
 #### Scenario: No leagues — redirect to /me
 - **WHEN** GET /api/context returns `{ status: "no_leagues" }`
 - **THEN** the dashboard page performs a server-side redirect to `/me`
+
+## ADDED Requirements
 
 ### Requirement: Dashboard renders differently based on setup status and role
 The `/dashboard` page SHALL fetch `SeasonSetupStatus` when the resolved context has `isCommissioner: true`. It SHALL render one of three states based on setup completeness and the viewer's role.

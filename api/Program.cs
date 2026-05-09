@@ -2,6 +2,7 @@ using GolfLeagueApi.Auth;
 using GolfLeagueApi.Data;
 using GolfLeagueApi.Extensions;
 using GolfLeagueApi.Middleware;
+using GolfLeagueApi.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -207,6 +208,296 @@ app.MapGet("/context", async (HttpContext ctx, AppDbContext db, Guid? membership
     });
 });
 
+// GET /season/setup-status — accessible to any authenticated member, returns isComplete only
+app.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var status = await ComputeSetupStatus(membership.SeasonId, db);
+    return Results.Ok(new { isComplete = status.IsComplete });
+});
+
+// Commissioner route group — requires X-Membership-Id header for a commissioner membership
+var commissioner = app.MapGroup("/commissioner").AddEndpointFilter(async (ctx, next) =>
+{
+    var golfer = ctx.HttpContext.Items["Golfer"] as Golfer;
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.HttpContext.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var db = ctx.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+    var membership = await db.LeagueMemberships
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null || !membership.IsCommissioner)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    ctx.HttpContext.Items["ActiveMembership"] = membership;
+    return await next(ctx);
+});
+
+// GET /commissioner/season/setup-status — full SeasonSetupStatus for commissioners
+commissioner.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var status = await ComputeSetupStatus(membership.SeasonId, db);
+    return Results.Ok(status);
+});
+
+// GET /commissioner/season/roster — active members for the season, sorted by last name
+commissioner.MapGet("/season/roster", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var members = await db.LeagueMemberships
+        .Where(m => m.SeasonId == membership.SeasonId && m.ArchivedAt == null)
+        .OrderBy(m => m.Golfer.LastName).ThenBy(m => m.Golfer.FirstName)
+        .Select(m => new
+        {
+            leagueMembershipId = m.Id,
+            golferId = m.GolferId,
+            firstName = m.Golfer.FirstName,
+            lastName = m.Golfer.LastName,
+            email = m.Golfer.Email,
+            handicap = m.Handicap,
+            isCommissioner = m.IsCommissioner
+        })
+        .ToListAsync();
+    return Results.Ok(members);
+});
+
+// PATCH /commissioner/season/roster/{leagueMembershipId}/handicap
+commissioner.MapPatch("/season/roster/{leagueMembershipId}/handicap", async (
+    Guid leagueMembershipId,
+    HandicapUpdateRequest req,
+    HttpContext ctx,
+    AppDbContext db) =>
+{
+    var activeMembership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var target = await db.LeagueMemberships
+        .Include(m => m.Golfer)
+        .FirstOrDefaultAsync(m => m.Id == leagueMembershipId && m.ArchivedAt == null);
+
+    if (target is null)
+        return Results.NotFound();
+
+    if (target.SeasonId != activeMembership.SeasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    target.Handicap = req.Handicap;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        leagueMembershipId = target.Id,
+        golferId = target.GolferId,
+        firstName = target.Golfer.FirstName,
+        lastName = target.Golfer.LastName,
+        email = target.Golfer.Email,
+        handicap = target.Handicap,
+        isCommissioner = target.IsCommissioner
+    });
+});
+
+// GET /commissioner/season/teams — teams, unassigned members, and lock state
+commissioner.MapGet("/season/teams", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var isLocked = await db.Weeks.AnyAsync(w => w.SeasonId == membership.SeasonId && w.StartDate <= today);
+
+    var teams = await db.Teams
+        .Where(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
+        .OrderBy(t => t.Name)
+        .Select(t => new
+        {
+            teamId = t.Id,
+            name = t.Name,
+            members = t.TeamMemberships.Select(tm => new
+            {
+                leagueMembershipId = tm.LeagueMembershipId,
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            }).ToList()
+        })
+        .ToListAsync();
+
+    var unassigned = await db.LeagueMemberships
+        .Where(m => m.SeasonId == membership.SeasonId && m.ArchivedAt == null && m.TeamMembership == null)
+        .OrderBy(m => m.Golfer.LastName).ThenBy(m => m.Golfer.FirstName)
+        .Select(m => new
+        {
+            leagueMembershipId = m.Id,
+            firstName = m.Golfer.FirstName,
+            lastName = m.Golfer.LastName
+        })
+        .ToListAsync();
+
+    return Results.Ok(new { isLocked, teams, unassigned });
+});
+
+// POST /commissioner/season/teams — create a team with exactly 2 members
+commissioner.MapPost("/season/teams", async (CreateTeamRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (req.MemberIds == null || req.MemberIds.Length != 2)
+        return Results.Json(new { error = "exactly_2_members_required" }, statusCode: 400);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var isLocked = await db.Weeks.AnyAsync(w => w.SeasonId == membership.SeasonId && w.StartDate <= today);
+    if (isLocked)
+        return Results.Json(new { error = "teams_locked" }, statusCode: 409);
+
+    var members = await db.LeagueMemberships
+        .Include(m => m.TeamMembership)
+        .Include(m => m.Golfer)
+        .Where(m => req.MemberIds.Contains(m.Id) && m.SeasonId == membership.SeasonId && m.ArchivedAt == null)
+        .ToListAsync();
+
+    if (members.Count != 2)
+        return Results.Json(new { error = "invalid_member_ids" }, statusCode: 400);
+
+    if (members.Any(m => m.TeamMembership != null))
+        return Results.Json(new { error = "member_already_assigned" }, statusCode: 409);
+
+    var teamCount = await db.Teams.CountAsync(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
+    var teamName = $"Team {teamCount + 1}";
+
+    var now = DateTime.UtcNow;
+    var team = new Team
+    {
+        Id = Guid.NewGuid(),
+        SeasonId = membership.SeasonId,
+        Name = teamName,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Teams.Add(team);
+
+    foreach (var m in members)
+    {
+        db.TeamMemberships.Add(new TeamMembership
+        {
+            Id = Guid.NewGuid(),
+            TeamId = team.Id,
+            LeagueMembershipId = m.Id,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+    }
+
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/commissioner/season/teams/{team.Id}", new
+    {
+        teamId = team.Id,
+        name = team.Name,
+        members = members.Select(m => new
+        {
+            leagueMembershipId = m.Id,
+            firstName = m.Golfer.FirstName,
+            lastName = m.Golfer.LastName
+        })
+    });
+});
+
+// GET /commissioner/season/schedule — weeks for the season ordered by week number
+commissioner.MapGet("/season/schedule", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+    var weeks = await db.Weeks
+        .Where(w => w.SeasonId == membership.SeasonId)
+        .OrderBy(w => w.WeekNumber)
+        .Select(w => new
+        {
+            id = w.Id,
+            weekNumber = w.WeekNumber,
+            startDate = w.StartDate,
+            type = w.Type.ToString()
+        })
+        .ToListAsync();
+    return Results.Ok(weeks);
+});
+
+// DELETE /commissioner/season/teams/{teamId} — disband a team
+commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var team = await db.Teams
+        .Include(t => t.TeamMemberships)
+        .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
+
+    if (team is null)
+        return Results.NotFound();
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var isLocked = await db.Weeks.AnyAsync(w => w.SeasonId == membership.SeasonId && w.StartDate <= today);
+    if (isLocked)
+        return Results.Json(new { error = "teams_locked" }, statusCode: 409);
+
+    db.TeamMemberships.RemoveRange(team.TeamMemberships);
+    team.ArchivedAt = DateTime.UtcNow;
+    team.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
 app.Run();
 
+static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db)
+{
+    var memberCount = await db.LeagueMemberships
+        .CountAsync(m => m.SeasonId == seasonId && m.ArchivedAt == null);
+
+    var rosterMet = memberCount >= 2;
+    var rosterDetail = rosterMet
+        ? $"{memberCount} members added"
+        : $"{memberCount} member{(memberCount == 1 ? "" : "s")} added — need at least 2";
+
+    var unassigned = await db.LeagueMemberships
+        .Where(m => m.SeasonId == seasonId && m.ArchivedAt == null && m.TeamMembership == null)
+        .Select(m => m.Golfer.FirstName + " " + m.Golfer.LastName)
+        .ToListAsync();
+    var teamsMet = unassigned.Count == 0;
+    var teamsDetail = teamsMet
+        ? "All members assigned to a team"
+        : string.Join(", ", unassigned) + (unassigned.Count == 1 ? " is" : " are") + " not on a team";
+
+    var weekCount = await db.Weeks.CountAsync(w => w.SeasonId == seasonId);
+    var scheduleMet = weekCount > 0;
+    var scheduleDetail = weekCount == 1 ? "1 week scheduled" : $"{weekCount} weeks scheduled";
+
+    var requirements = new[]
+    {
+        new SetupRequirement("Roster", rosterMet, rosterDetail),
+        new SetupRequirement("Teams", teamsMet, teamsDetail),
+        new SetupRequirement("Schedule", scheduleMet, scheduleDetail),
+    };
+
+    return new SetupStatus(requirements.All(r => r.IsMet), requirements);
+}
+
 record DevLoginRequest(Guid GolferId);
+record HandicapUpdateRequest(decimal? Handicap);
+record CreateTeamRequest(Guid[] MemberIds);
+record SetupRequirement(string Name, bool IsMet, string Detail);
+record SetupStatus(bool IsComplete, SetupRequirement[] Requirements);

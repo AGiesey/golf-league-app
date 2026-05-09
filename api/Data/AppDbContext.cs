@@ -13,6 +13,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<Golfer> Golfers => Set<Golfer>();
     public DbSet<LeagueMembership> LeagueMemberships => Set<LeagueMembership>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<TeamMembership> TeamMemberships => Set<TeamMembership>();
+    public DbSet<Week> Weeks => Set<Week>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
