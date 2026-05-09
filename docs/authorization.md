@@ -121,7 +121,7 @@ A user whose active `LeagueContext` has `isCommissioner = true` can:
 
 - Manage roster (add/remove `LeagueMembership` records)
 - Form and edit teams
-- Create and edit `Matchup`, `Pairing`, `PairingSlot` records
+- Manage matchups (`ManageMatchups`): create, edit, and delete `Matchup`, `Pairing`, and `PairingSlot` records
 - Enter and edit `Round` and `HoleScore` records
 - Manage subs
 - Override `MatchResult` records

@@ -59,3 +59,10 @@ The active tab SHALL be controlled by a `tab` URL search parameter (`?tab=roster
 #### Scenario: Default tab is Roster
 - **WHEN** the URL is `/commissioner/season` with no tab parameter
 - **THEN** the Roster tab is active
+
+### Requirement: Navigation to matchup management
+The commissioner season page SHALL include a link or entry point that navigates the commissioner to `/commissioner/matchups` for managing weekly matchups.
+
+#### Scenario: Matchup management link visible to commissioner
+- **WHEN** a commissioner views the `/commissioner/season` page
+- **THEN** there is a visible link or button that navigates to `/commissioner/matchups`

@@ -13,4 +13,5 @@ public class Week
     public DateTime UpdatedAt { get; set; }
 
     public Season Season { get; set; } = null!;
+    public ICollection<Matchup> Matchups { get; set; } = [];
 }

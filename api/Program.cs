@@ -461,6 +461,275 @@ commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext
     return Results.NoContent();
 });
 
+// GET /commissioner/season/matchups?weekId=<id>
+commissioner.MapGet("/season/matchups", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == weekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.NotFound();
+
+    var matchups = await db.Matchups
+        .Where(m => m.WeekId == weekId)
+        .Select(m => new
+        {
+            matchupId = m.Id,
+            teamA = new
+            {
+                teamId = m.TeamA.Id,
+                name = m.TeamA.Name,
+                members = m.TeamA.TeamMemberships.Select(tm => new
+                {
+                    firstName = tm.LeagueMembership.Golfer.FirstName,
+                    lastName = tm.LeagueMembership.Golfer.LastName
+                })
+            },
+            teamB = new
+            {
+                teamId = m.TeamB.Id,
+                name = m.TeamB.Name,
+                members = m.TeamB.TeamMemberships.Select(tm => new
+                {
+                    firstName = tm.LeagueMembership.Golfer.FirstName,
+                    lastName = tm.LeagueMembership.Golfer.LastName
+                })
+            },
+            isLocked = false // TODO: replace with Round existence check when score entry lands
+        })
+        .ToListAsync();
+
+    return Results.Ok(matchups);
+});
+
+// POST /commissioner/season/matchups
+commissioner.MapPost("/season/matchups", async (CreateMatchupRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (req.TeamAId == req.TeamBId)
+        return Results.Json(new { error = "same_team" }, statusCode: 422);
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == req.WeekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.Json(new { error = "invalid_week" }, statusCode: 422);
+    if (week.Type != WeekType.Regular)
+        return Results.Json(new { error = "week_not_regular" }, statusCode: 422);
+
+    var teamIds = new[] { req.TeamAId, req.TeamBId };
+    var teams = await db.Teams
+        .Include(t => t.TeamMemberships)
+            .ThenInclude(tm => tm.LeagueMembership)
+                .ThenInclude(m => m.Golfer)
+        .Where(t => teamIds.Contains(t.Id) && t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
+        .ToListAsync();
+
+    if (teams.Count != 2)
+        return Results.Json(new { error = "invalid_team" }, statusCode: 422);
+    if (teams.Any(t => !t.TeamMemberships.Any()))
+        return Results.Json(new { error = "empty_team" }, statusCode: 422);
+
+    var alreadyScheduled = await db.Matchups
+        .AnyAsync(m => m.WeekId == req.WeekId && (teamIds.Contains(m.TeamAId) || teamIds.Contains(m.TeamBId)));
+    if (alreadyScheduled)
+        return Results.Json(new { error = "team_already_scheduled" }, statusCode: 409);
+
+    var now = DateTime.UtcNow;
+    var matchup = new Matchup
+    {
+        Id = Guid.NewGuid(),
+        WeekId = req.WeekId,
+        TeamAId = req.TeamAId,
+        TeamBId = req.TeamBId,
+        CreatedBy = membership.Id,
+        UpdatedBy = membership.Id,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Matchups.Add(matchup);
+
+    var pairing = new Pairing
+    {
+        Id = Guid.NewGuid(),
+        MatchupId = matchup.Id,
+        CreatedBy = membership.Id,
+        UpdatedBy = membership.Id,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Pairings.Add(pairing);
+
+    foreach (var team in teams)
+    {
+        foreach (var tm in team.TeamMemberships)
+        {
+            db.PairingSlots.Add(new PairingSlot
+            {
+                Id = Guid.NewGuid(),
+                PairingId = pairing.Id,
+                LeagueMembershipId = tm.LeagueMembershipId,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+    }
+
+    await db.SaveChangesAsync();
+
+    var teamA = teams.First(t => t.Id == req.TeamAId);
+    var teamB = teams.First(t => t.Id == req.TeamBId);
+    return Results.Created($"/commissioner/season/matchups/{matchup.Id}", new
+    {
+        matchupId = matchup.Id,
+        teamA = new
+        {
+            teamId = teamA.Id,
+            name = teamA.Name,
+            members = teamA.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        teamB = new
+        {
+            teamId = teamB.Id,
+            name = teamB.Name,
+            members = teamB.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        isLocked = false
+    });
+});
+
+// PUT /commissioner/season/matchups/{matchupId}
+commissioner.MapPut("/season/matchups/{matchupId}", async (Guid matchupId, UpdateMatchupRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (req.TeamAId == req.TeamBId)
+        return Results.Json(new { error = "same_team" }, statusCode: 422);
+
+    var matchup = await db.Matchups
+        .Include(m => m.Pairing)
+            .ThenInclude(p => p.PairingSlots)
+        .Include(m => m.Week)
+        .FirstOrDefaultAsync(m => m.Id == matchupId && m.Week.SeasonId == membership.SeasonId);
+
+    if (matchup is null)
+        return Results.NotFound();
+
+    var isLocked = false; // TODO: replace with Round existence check when score entry lands
+    if (isLocked)
+        return Results.Json(new { error = "matchup_locked" }, statusCode: 409);
+
+    var teamIds = new[] { req.TeamAId, req.TeamBId };
+    var teams = await db.Teams
+        .Include(t => t.TeamMemberships)
+            .ThenInclude(tm => tm.LeagueMembership)
+                .ThenInclude(m => m.Golfer)
+        .Where(t => teamIds.Contains(t.Id) && t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
+        .ToListAsync();
+
+    if (teams.Count != 2)
+        return Results.Json(new { error = "invalid_team" }, statusCode: 422);
+    if (teams.Any(t => !t.TeamMemberships.Any()))
+        return Results.Json(new { error = "empty_team" }, statusCode: 422);
+
+    var alreadyScheduled = await db.Matchups
+        .AnyAsync(m => m.WeekId == matchup.WeekId && m.Id != matchupId &&
+                       (teamIds.Contains(m.TeamAId) || teamIds.Contains(m.TeamBId)));
+    if (alreadyScheduled)
+        return Results.Json(new { error = "team_already_scheduled" }, statusCode: 409);
+
+    var now = DateTime.UtcNow;
+    matchup.TeamAId = req.TeamAId;
+    matchup.TeamBId = req.TeamBId;
+    matchup.UpdatedBy = membership.Id;
+    matchup.UpdatedAt = now;
+
+    matchup.Pairing.UpdatedBy = membership.Id;
+    matchup.Pairing.UpdatedAt = now;
+
+    db.PairingSlots.RemoveRange(matchup.Pairing.PairingSlots);
+
+    foreach (var team in teams)
+    {
+        foreach (var tm in team.TeamMemberships)
+        {
+            db.PairingSlots.Add(new PairingSlot
+            {
+                Id = Guid.NewGuid(),
+                PairingId = matchup.Pairing.Id,
+                LeagueMembershipId = tm.LeagueMembershipId,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+    }
+
+    await db.SaveChangesAsync();
+
+    var teamA = teams.First(t => t.Id == req.TeamAId);
+    var teamB = teams.First(t => t.Id == req.TeamBId);
+    return Results.Ok(new
+    {
+        matchupId = matchup.Id,
+        teamA = new
+        {
+            teamId = teamA.Id,
+            name = teamA.Name,
+            members = teamA.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        teamB = new
+        {
+            teamId = teamB.Id,
+            name = teamB.Name,
+            members = teamB.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        isLocked = false
+    });
+});
+
+// DELETE /commissioner/season/matchups/{matchupId}
+commissioner.MapDelete("/season/matchups/{matchupId}", async (Guid matchupId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var matchup = await db.Matchups
+        .Include(m => m.Pairing)
+            .ThenInclude(p => p.PairingSlots)
+        .Include(m => m.Week)
+        .FirstOrDefaultAsync(m => m.Id == matchupId && m.Week.SeasonId == membership.SeasonId);
+
+    if (matchup is null)
+        return Results.NotFound();
+
+    var isLocked = false; // TODO: replace with Round existence check when score entry lands
+    if (isLocked)
+        return Results.Json(new { error = "matchup_locked" }, statusCode: 409);
+
+    db.PairingSlots.RemoveRange(matchup.Pairing.PairingSlots);
+    db.Pairings.Remove(matchup.Pairing);
+    db.Matchups.Remove(matchup);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
 app.Run();
 
 static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db)
@@ -499,5 +768,7 @@ static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db
 record DevLoginRequest(Guid GolferId);
 record HandicapUpdateRequest(decimal? Handicap);
 record CreateTeamRequest(Guid[] MemberIds);
+record CreateMatchupRequest(Guid WeekId, Guid TeamAId, Guid TeamBId);
+record UpdateMatchupRequest(Guid TeamAId, Guid TeamBId);
 record SetupRequirement(string Name, bool IsMet, string Detail);
 record SetupStatus(bool IsComplete, SetupRequirement[] Requirements);
