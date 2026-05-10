@@ -75,6 +75,7 @@ erDiagram
     uuid league_id FK
     string handicap_system
     bool subs_allowed
+    uuid default_tee_box_id FK
   }
   SEASON {
     uuid id PK
@@ -216,6 +217,8 @@ league plays.
 - `HandicapSystem` — `None` or `LeagueEstablished` at MVP. `GHIN` and others
   post-MVP.
 - `SubsAllowed` — boolean. Subs are allowed at MVP by default.
+- `DefaultTeeBoxId` — nullable FK to `TeeBox`. When set, the score-entry dialog
+  pre-selects this tee box. Null means no default (commissioner picks each time).
 
 This table starts small and grows as new league-level options land. Each new
 option arrives as its own migration with a clear default for existing leagues.

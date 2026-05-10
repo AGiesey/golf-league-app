@@ -123,8 +123,7 @@ A user whose active `LeagueContext` has `isCommissioner = true` can:
 - Manage roster (add/remove `LeagueMembership` records)
 - Form and edit teams (team membership is locked after season starts; team names can be renamed at any time)
 - Manage matchups (`ManageMatchups`): create, edit, and delete `Matchup`, `Pairing`, and `PairingSlot` records
-- Enter and edit `Round` and `HoleScore` records
-- Manage subs
+- `ManageScores`: create and edit `Round` and `HoleScore` records via `POST /pairing-slots/{slotId}/round`, `PUT /rounds/{roundId}`, and `POST /seasons/{seasonId}/subs`; enforced by the commissioner route group filter
 - Override `MatchResult` records
 - Configure `LeagueConfiguration` for the season's league
 - Create, edit, and delete `Week` records (within the constraints of the

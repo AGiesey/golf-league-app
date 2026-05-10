@@ -10,4 +10,5 @@ public class PairingSlot
 
     public Pairing Pairing { get; set; } = null!;
     public LeagueMembership LeagueMembership { get; set; } = null!;
+    public Round? Round { get; set; }
 }

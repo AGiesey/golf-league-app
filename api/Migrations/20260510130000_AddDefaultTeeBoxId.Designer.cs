@@ -3,6 +3,7 @@ using System;
 using GolfLeagueApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GolfLeagueApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260510130000_AddDefaultTeeBoxId")]
+    partial class AddDefaultTeeBoxId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -633,148 +636,6 @@ namespace GolfLeagueApi.Migrations
                     b.ToTable("pairing_slots", (string)null);
                 });
 
-            modelBuilder.Entity("GolfLeagueApi.Models.Sub", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("first_name");
-
-                    b.Property<decimal>("Handicap")
-                        .HasColumnType("numeric")
-                        .HasColumnName("handicap");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("last_name");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_subs");
-
-                    b.ToTable("subs", (string)null);
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Round", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid?>("LeagueMembershipId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("league_membership_id");
-
-                    b.Property<Guid>("PairingSlotId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("pairing_slot_id");
-
-                    b.Property<Guid?>("SubId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sub_id");
-
-                    b.Property<Guid>("TeeBoxId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tee_box_id");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_rounds");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_rounds_created_by");
-
-                    b.HasIndex("LeagueMembershipId")
-                        .HasDatabaseName("ix_rounds_league_membership_id");
-
-                    b.HasIndex("PairingSlotId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_rounds_pairing_slot_id");
-
-                    b.HasIndex("SubId")
-                        .HasDatabaseName("ix_rounds_sub_id");
-
-                    b.HasIndex("TeeBoxId")
-                        .HasDatabaseName("ix_rounds_tee_box_id");
-
-                    b.HasIndex("UpdatedBy")
-                        .HasDatabaseName("ix_rounds_updated_by");
-
-                    b.ToTable("rounds", (string)null);
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.HoleScore", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("HoleId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("hole_id");
-
-                    b.Property<Guid>("RoundId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("round_id");
-
-                    b.Property<int?>("Strokes")
-                        .HasColumnType("integer")
-                        .HasColumnName("strokes");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_hole_scores");
-
-                    b.HasIndex("HoleId")
-                        .HasDatabaseName("ix_hole_scores_hole_id");
-
-                    b.HasIndex("RoundId", "HoleId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_hole_scores_round_id_hole_id");
-
-                    b.ToTable("hole_scores", (string)null);
-                });
-
             modelBuilder.Entity("GolfLeagueApi.Models.Golfer", b =>
                 {
                     b.HasOne("GolfLeagueApi.Models.Course", "Course")
@@ -1008,76 +869,6 @@ namespace GolfLeagueApi.Migrations
                     b.Navigation("Season");
                 });
 
-            modelBuilder.Entity("GolfLeagueApi.Models.Round", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.LeagueMembership", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_rounds_league_memberships_created_by");
-
-                    b.HasOne("GolfLeagueApi.Models.LeagueMembership", "LeagueMembership")
-                        .WithMany()
-                        .HasForeignKey("LeagueMembershipId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_rounds_league_memberships_league_membership_id");
-
-                    b.HasOne("GolfLeagueApi.Models.PairingSlot", "PairingSlot")
-                        .WithOne("Round")
-                        .HasForeignKey("GolfLeagueApi.Models.Round", "PairingSlotId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_rounds_pairing_slots_pairing_slot_id");
-
-                    b.HasOne("GolfLeagueApi.Models.Sub", "Sub")
-                        .WithMany()
-                        .HasForeignKey("SubId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_rounds_subs_sub_id");
-
-                    b.HasOne("GolfLeagueApi.Models.TeeBox", "TeeBox")
-                        .WithMany()
-                        .HasForeignKey("TeeBoxId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_rounds_tee_boxes_tee_box_id");
-
-                    b.HasOne("GolfLeagueApi.Models.LeagueMembership", null)
-                        .WithMany()
-                        .HasForeignKey("UpdatedBy")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_rounds_league_memberships_updated_by");
-
-                    b.Navigation("LeagueMembership");
-
-                    b.Navigation("PairingSlot");
-
-                    b.Navigation("Sub");
-
-                    b.Navigation("TeeBox");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.HoleScore", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.Hole", "Hole")
-                        .WithMany()
-                        .HasForeignKey("HoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_hole_scores_holes_hole_id");
-
-                    b.HasOne("GolfLeagueApi.Models.Round", "Round")
-                        .WithMany("HoleScores")
-                        .HasForeignKey("RoundId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_hole_scores_rounds_round_id");
-
-                    b.Navigation("Hole");
-
-                    b.Navigation("Round");
-                });
-
             modelBuilder.Entity("GolfLeagueApi.Models.Course", b =>
                 {
                     b.Navigation("Golfers");
@@ -1114,16 +905,6 @@ namespace GolfLeagueApi.Migrations
             modelBuilder.Entity("GolfLeagueApi.Models.Pairing", b =>
                 {
                     b.Navigation("PairingSlots");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.PairingSlot", b =>
-                {
-                    b.Navigation("Round");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Round", b =>
-                {
-                    b.Navigation("HoleScores");
                 });
 
             modelBuilder.Entity("GolfLeagueApi.Models.Season", b =>
