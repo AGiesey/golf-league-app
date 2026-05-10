@@ -19,6 +19,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MatchupWidget } from "./widgets/MatchupWidget";
 import type { MatchupSummary } from "./widgets/MatchupWidget";
+import { UpcomingMatchupWidget } from "./widgets/UpcomingMatchupWidget";
 
 const TAB_MAP: Record<string, string> = {
   Roster: "roster",
@@ -136,6 +137,7 @@ export default async function DashboardPage() {
             <CardDescription>Season {seasonYear}</CardDescription>
           </CardHeader>
         </Card>
+        <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
         {summary && <MatchupWidget summary={summary} />}
       </div>
     );
@@ -172,6 +174,7 @@ export default async function DashboardPage() {
           <CardDescription>Season {seasonYear}</CardDescription>
         </CardHeader>
       </Card>
+      <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
       {summary && <MatchupWidget summary={summary} />}
     </div>
   );

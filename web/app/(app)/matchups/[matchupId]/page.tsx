@@ -8,8 +8,10 @@ import type { ScorecardData } from "@/components/scorecard/ScorecardView";
 
 export default async function MatchupScorecardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ matchupId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   await connection();
 
@@ -18,6 +20,7 @@ export default async function MatchupScorecardPage({
   if (ctx.status !== "resolved") redirect("/dashboard");
 
   const { matchupId } = await params;
+  const { from: backWeekId } = await searchParams;
   const token = await getAccessToken();
   const { leagueMembershipId: membershipId, isCommissioner, seasonId } = ctx.context;
 
@@ -49,6 +52,7 @@ export default async function MatchupScorecardPage({
         membershipId={membershipId}
         token={token}
         isCommissioner={isCommissioner}
+        backWeekId={backWeekId}
       />
     </div>
   );

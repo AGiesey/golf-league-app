@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Scorecard } from "./Scorecard";
@@ -80,6 +81,7 @@ interface ScorecardViewProps {
   membershipId: string;
   token: string;
   isCommissioner: boolean;
+  backWeekId?: string;
 }
 
 export function ScorecardView({
@@ -88,6 +90,7 @@ export function ScorecardView({
   membershipId,
   token,
   isCommissioner,
+  backWeekId,
 }: ScorecardViewProps) {
   const router = useRouter();
   const [dialog, setDialog] = useState<ActiveDialog | null>(null);
@@ -160,6 +163,15 @@ export function ScorecardView({
 
   return (
     <div className="space-y-4">
+      {backWeekId && (
+        <Link
+          href={`/commissioner/scores/${backWeekId}`}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Back to week
+        </Link>
+      )}
+
       {pairing === null && (
         <p className="text-sm text-muted-foreground">
           No pairing has been created for this matchup yet.

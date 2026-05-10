@@ -41,12 +41,12 @@ function NavLink({ item }: { item: NavItem }) {
 const MEMBER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "My Profile", href: "/me" },
-  { label: "Scores / Rounds", disabled: true },
 ];
 
 const COMMISSIONER_ITEMS: NavItem[] = [
   { label: "Manage Season", href: "/commissioner/season" },
   { label: "Manage Matchups", href: "/commissioner/matchups" },
+  { label: "Manage Scores", href: "/commissioner/scores" },
 ];
 
 function NavList({ isCommissioner }: { isCommissioner: boolean }) {

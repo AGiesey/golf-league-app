@@ -152,7 +152,11 @@ export function ScoreEntryDialog({
             <Label>Tee box</Label>
             <Select value={teeBoxId} onValueChange={(v) => { if (v !== null) setTeeBoxId(v); }}>
               <SelectTrigger>
-                <SelectValue placeholder="Select tee box…" />
+                <SelectValue>
+                  {(value: string | null) =>
+                    value ? (teeBoxes.find((tb) => tb.id === value)?.name ?? value) : "Select tee box…"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {teeBoxes.map((tb) => (

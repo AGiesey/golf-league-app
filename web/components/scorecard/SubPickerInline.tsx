@@ -122,7 +122,12 @@ export function SubPickerInline({
           onValueChange={(v) => onSubChange(v || null)}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select a sub…" />
+            <SelectValue>
+              {(value: string | null) => {
+                const sub = subs.find((s) => s.id === value);
+                return sub ? `${sub.firstName} ${sub.lastName} (hdcp ${sub.handicap})` : "Select a sub…";
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {subs.map((s) => (

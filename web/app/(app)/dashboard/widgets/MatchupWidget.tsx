@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Calendar, Clock } from "lucide-react";
 import {
   Card,
@@ -12,6 +13,7 @@ interface MatchupTeam {
 }
 
 interface UpcomingMatchup {
+  matchupId: string | null;
   weekNumber: number;
   startDate: string;
   myTeam: MatchupTeam;
@@ -52,17 +54,7 @@ export function MatchupWidget({ summary }: { summary: MatchupSummary }) {
             Upcoming
           </p>
           {upcoming ? (
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">
-                Week {upcoming.weekNumber} · {formatMatchupDate(upcoming.startDate)}
-              </p>
-              <p className="text-sm">vs {upcoming.opponent.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {upcoming.opponent.members
-                  .map((m) => `${m.firstName} ${m.lastName}`)
-                  .join(" & ")}
-              </p>
-            </div>
+            <MatchupSection matchup={upcoming} />
           ) : (
             <p className="text-sm text-muted-foreground">No upcoming matchup scheduled.</p>
           )}
@@ -74,22 +66,7 @@ export function MatchupWidget({ summary }: { summary: MatchupSummary }) {
             Last Match
           </p>
           {previous ? (
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">
-                Week {previous.weekNumber} · {formatMatchupDate(previous.startDate)}
-              </p>
-              <p className="text-sm">vs {previous.opponent.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {previous.opponent.members
-                  .map((m) => `${m.firstName} ${m.lastName}`)
-                  .join(" & ")}
-              </p>
-              {!previous.hasResults && (
-                <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-                  Results pending
-                </p>
-              )}
-            </div>
+            <MatchupSection matchup={previous} />
           ) : (
             <p className="text-sm text-muted-foreground">No previous matches yet.</p>
           )}
@@ -97,4 +74,38 @@ export function MatchupWidget({ summary }: { summary: MatchupSummary }) {
       </CardContent>
     </Card>
   );
+}
+
+function MatchupSection({ matchup }: { matchup: UpcomingMatchup & { hasResults?: boolean } }) {
+  const content = (
+    <div className="space-y-0.5">
+      <p className="text-sm font-medium">
+        Week {matchup.weekNumber} · {formatMatchupDate(matchup.startDate)}
+      </p>
+      <p className="text-sm">vs {matchup.opponent.name}</p>
+      <p className="text-xs text-muted-foreground">
+        {matchup.opponent.members
+          .map((m) => `${m.firstName} ${m.lastName}`)
+          .join(" & ")}
+      </p>
+      {"hasResults" in matchup && !matchup.hasResults && (
+        <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+          Results pending
+        </p>
+      )}
+    </div>
+  );
+
+  if (matchup.matchupId) {
+    return (
+      <Link
+        href={`/matchups/${matchup.matchupId}`}
+        className="block rounded-md p-2 -m-2 hover:bg-accent transition-colors"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }

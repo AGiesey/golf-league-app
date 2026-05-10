@@ -2,6 +2,9 @@ import { H1, H2, H3, H4, Lead, Body, Muted, Code } from "@/components/typography
 import { Scorecard } from "@/components/scorecard/Scorecard";
 import type { HoleInfo, SlotScore } from "@/components/scorecard/Scorecard";
 import { ScoreEntryDialogExamples } from "@/components/scorecard/ScoreEntryDialogExamples";
+import { UpcomingMatchupExamples } from "@/components/dashboard/UpcomingMatchupExamples";
+import { WeekListExamples } from "@/components/dashboard/WeekListExamples";
+import { WeekDetailExamples } from "@/components/dashboard/WeekDetailExamples";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -359,6 +362,51 @@ export default function DesignPage() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Upcoming Matchup Widget
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Upcoming Matchup Widget</H2>
+          <Muted className="mt-1">
+            Dashboard widget — golfer's next matchup. Three states.
+          </Muted>
+        </div>
+        <UpcomingMatchupExamples />
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Commissioner Week List
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Commissioner — Week List</H2>
+          <Muted className="mt-1">
+            Score-entry hub week list. Three status states.
+          </Muted>
+        </div>
+        <WeekListExamples />
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Commissioner Week Detail
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Commissioner — Week Detail</H2>
+          <Muted className="mt-1">
+            Per-matchup score-entry status. Three states.
+          </Muted>
+        </div>
+        <WeekDetailExamples />
       </section>
     </div>
   );
