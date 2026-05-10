@@ -58,7 +58,7 @@ true:
 |---|---|
 | **Roster** | At least 2 active `LeagueMembership` records exist for the season |
 | **Teams** | Every active `LeagueMembership` belongs to a `Team` via `TeamMembership` |
-| **Schedule** | At least one `Week` exists for the season |
+| **Schedule** | At least one `Week` exists for the season; each week carries a `Nine` value (`Front`, `Back`, or `Full`) indicating which holes are played |
 
 These are the minimum conditions for the league to function. Any of
 them missing means matchups, pairings, score entry, or standings would
@@ -287,3 +287,6 @@ teams that have members," not "season must be marked set up."
   status; the role allowed to fulfill it would shift. No structural
   change to this doc — just an update to the Teams/Schedule rows in
   the requirements table when the course admin role lands.
+- **Editing `Week.Nine` via UI.** The `Nine` field (Front / Back / Full) is
+  currently set only via seed SQL. A UI to view and edit which nine is
+  played for each week is part of the deferred course admin work.

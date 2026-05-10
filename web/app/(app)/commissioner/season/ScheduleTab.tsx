@@ -9,6 +9,7 @@ interface Week {
   weekNumber: number;
   startDate: string;
   type: string;
+  nine: string;
 }
 
 interface ScheduleTabProps {
@@ -24,6 +25,14 @@ function formatDate(dateStr: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatSide(nine: string): string {
+  switch (nine) {
+    case "Back": return "Back 9";
+    case "Full": return "Full 18";
+    default: return "Front 9";
+  }
 }
 
 function formatType(type: string): string {
@@ -70,6 +79,7 @@ export function ScheduleTab({ membershipId, token }: ScheduleTabProps) {
         <tr className="border-b text-left">
           <th className="pb-2 pr-6 font-medium">Week</th>
           <th className="pb-2 pr-6 font-medium">Date</th>
+          <th className="pb-2 pr-6 font-medium">Side</th>
           <th className="pb-2 font-medium">Type</th>
         </tr>
       </thead>
@@ -78,6 +88,7 @@ export function ScheduleTab({ membershipId, token }: ScheduleTabProps) {
           <tr key={week.id}>
             <td className="py-2 pr-6 tabular-nums">{week.weekNumber}</td>
             <td className="py-2 pr-6">{formatDate(week.startDate)}</td>
+            <td className="py-2 pr-6 text-muted-foreground">{formatSide(week.nine)}</td>
             <td className="py-2 text-muted-foreground">{formatType(week.type)}</td>
           </tr>
         ))}

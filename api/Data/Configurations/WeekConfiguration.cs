@@ -15,6 +15,10 @@ public class WeekConfiguration : IEntityTypeConfiguration<Week>
                .HasConversion<string>()
                .HasDefaultValue(WeekType.Regular);
 
+        builder.Property(w => w.Nine)
+               .HasConversion<string>()
+               .HasDefaultValue(NineType.Front);
+
         builder.HasOne(w => w.Season)
                .WithMany(s => s.Weeks)
                .HasForeignKey(w => w.SeasonId)

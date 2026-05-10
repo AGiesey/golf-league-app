@@ -506,7 +506,8 @@ commissioner.MapGet("/season/schedule", async (HttpContext ctx, AppDbContext db)
             id = w.Id,
             weekNumber = w.WeekNumber,
             startDate = w.StartDate,
-            type = w.Type.ToString()
+            type = w.Type.ToString(),
+            nine = w.Nine.ToString()
         })
         .ToListAsync();
     return Results.Ok(weeks);

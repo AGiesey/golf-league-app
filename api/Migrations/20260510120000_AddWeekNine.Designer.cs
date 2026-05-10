@@ -3,6 +3,7 @@ using System;
 using GolfLeagueApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GolfLeagueApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260510120000_AddWeekNine")]
+    partial class AddWeekNine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -282,6 +285,147 @@ namespace GolfLeagueApi.Migrations
                     b.ToTable("league_memberships", (string)null);
                 });
 
+            modelBuilder.Entity("GolfLeagueApi.Models.Matchup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("TeamAId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_a_id");
+
+                    b.Property<Guid>("TeamBId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_b_id");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_matchups");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_matchups_created_by");
+
+                    b.HasIndex("TeamAId")
+                        .HasDatabaseName("ix_matchups_team_a_id");
+
+                    b.HasIndex("TeamBId")
+                        .HasDatabaseName("ix_matchups_team_b_id");
+
+                    b.HasIndex("UpdatedBy")
+                        .HasDatabaseName("ix_matchups_updated_by");
+
+                    b.HasIndex("WeekId")
+                        .HasDatabaseName("ix_matchups_week_id");
+
+                    b.ToTable("matchups", (string)null);
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.Pairing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("MatchupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("matchup_id");
+
+                    b.Property<TimeOnly?>("TeeTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("tee_time");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pairings");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_pairings_created_by");
+
+                    b.HasIndex("MatchupId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_pairings_matchup_id");
+
+                    b.HasIndex("UpdatedBy")
+                        .HasDatabaseName("ix_pairings_updated_by");
+
+                    b.ToTable("pairings", (string)null);
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.PairingSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LeagueMembershipId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("league_membership_id");
+
+                    b.Property<Guid>("PairingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pairing_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pairing_slots");
+
+                    b.HasIndex("LeagueMembershipId")
+                        .HasDatabaseName("ix_pairing_slots_league_membership_id");
+
+                    b.HasIndex("PairingId")
+                        .HasDatabaseName("ix_pairing_slots_pairing_id");
+
+                    b.ToTable("pairing_slots", (string)null);
+                });
+
             modelBuilder.Entity("GolfLeagueApi.Models.Season", b =>
                 {
                     b.Property<Guid>("Id")
@@ -485,147 +629,6 @@ namespace GolfLeagueApi.Migrations
                     b.ToTable("weeks", (string)null);
                 });
 
-            modelBuilder.Entity("GolfLeagueApi.Models.Matchup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("TeamAId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("team_a_id");
-
-                    b.Property<Guid>("TeamBId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("team_b_id");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("WeekId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("week_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_matchups");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_matchups_created_by");
-
-                    b.HasIndex("TeamAId")
-                        .HasDatabaseName("ix_matchups_team_a_id");
-
-                    b.HasIndex("TeamBId")
-                        .HasDatabaseName("ix_matchups_team_b_id");
-
-                    b.HasIndex("UpdatedBy")
-                        .HasDatabaseName("ix_matchups_updated_by");
-
-                    b.HasIndex("WeekId")
-                        .HasDatabaseName("ix_matchups_week_id");
-
-                    b.ToTable("matchups", (string)null);
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Pairing", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("MatchupId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("matchup_id");
-
-                    b.Property<TimeOnly?>("TeeTime")
-                        .HasColumnType("time without time zone")
-                        .HasColumnName("tee_time");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_pairings");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_pairings_created_by");
-
-                    b.HasIndex("MatchupId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_pairings_matchup_id");
-
-                    b.HasIndex("UpdatedBy")
-                        .HasDatabaseName("ix_pairings_updated_by");
-
-                    b.ToTable("pairings", (string)null);
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.PairingSlot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("LeagueMembershipId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("league_membership_id");
-
-                    b.Property<Guid>("PairingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("pairing_id");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_pairing_slots");
-
-                    b.HasIndex("LeagueMembershipId")
-                        .HasDatabaseName("ix_pairing_slots_league_membership_id");
-
-                    b.HasIndex("PairingId")
-                        .HasDatabaseName("ix_pairing_slots_pairing_id");
-
-                    b.ToTable("pairing_slots", (string)null);
-                });
-
             modelBuilder.Entity("GolfLeagueApi.Models.Golfer", b =>
                 {
                     b.HasOne("GolfLeagueApi.Models.Course", "Course")
@@ -693,63 +696,6 @@ namespace GolfLeagueApi.Migrations
                     b.Navigation("Golfer");
 
                     b.Navigation("Season");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Season", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.League", "League")
-                        .WithMany("Seasons")
-                        .HasForeignKey("LeagueId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_seasons_leagues_league_id");
-
-                    b.Navigation("League");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.TeeBox", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.Course", "Course")
-                        .WithMany("TeeBoxes")
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tee_boxes_courses_course_id");
-
-                    b.Navigation("Course");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Team", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.Season", "Season")
-                        .WithMany("Teams")
-                        .HasForeignKey("SeasonId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_teams_seasons_season_id");
-
-                    b.Navigation("Season");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.TeamMembership", b =>
-                {
-                    b.HasOne("GolfLeagueApi.Models.LeagueMembership", "LeagueMembership")
-                        .WithOne("TeamMembership")
-                        .HasForeignKey("GolfLeagueApi.Models.TeamMembership", "LeagueMembershipId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_team_memberships_league_memberships_league_membership_id");
-
-                    b.HasOne("GolfLeagueApi.Models.Team", "Team")
-                        .WithMany("TeamMemberships")
-                        .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_team_memberships_teams_team_id");
-
-                    b.Navigation("LeagueMembership");
-
-                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("GolfLeagueApi.Models.Matchup", b =>
@@ -839,6 +785,63 @@ namespace GolfLeagueApi.Migrations
                     b.Navigation("Pairing");
                 });
 
+            modelBuilder.Entity("GolfLeagueApi.Models.Season", b =>
+                {
+                    b.HasOne("GolfLeagueApi.Models.League", "League")
+                        .WithMany("Seasons")
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_seasons_leagues_league_id");
+
+                    b.Navigation("League");
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.TeeBox", b =>
+                {
+                    b.HasOne("GolfLeagueApi.Models.Course", "Course")
+                        .WithMany("TeeBoxes")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tee_boxes_courses_course_id");
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.Team", b =>
+                {
+                    b.HasOne("GolfLeagueApi.Models.Season", "Season")
+                        .WithMany("Teams")
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_teams_seasons_season_id");
+
+                    b.Navigation("Season");
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.TeamMembership", b =>
+                {
+                    b.HasOne("GolfLeagueApi.Models.LeagueMembership", "LeagueMembership")
+                        .WithOne("TeamMembership")
+                        .HasForeignKey("GolfLeagueApi.Models.TeamMembership", "LeagueMembershipId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_memberships_league_memberships_league_membership_id");
+
+                    b.HasOne("GolfLeagueApi.Models.Team", "Team")
+                        .WithMany("TeamMemberships")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_memberships_teams_team_id");
+
+                    b.Navigation("LeagueMembership");
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("GolfLeagueApi.Models.Week", b =>
                 {
                     b.HasOne("GolfLeagueApi.Models.Season", "Season")
@@ -879,6 +882,16 @@ namespace GolfLeagueApi.Migrations
                     b.Navigation("TeamMembership");
                 });
 
+            modelBuilder.Entity("GolfLeagueApi.Models.Matchup", b =>
+                {
+                    b.Navigation("Pairing");
+                });
+
+            modelBuilder.Entity("GolfLeagueApi.Models.Pairing", b =>
+                {
+                    b.Navigation("PairingSlots");
+                });
+
             modelBuilder.Entity("GolfLeagueApi.Models.Season", b =>
                 {
                     b.Navigation("Memberships");
@@ -891,16 +904,6 @@ namespace GolfLeagueApi.Migrations
             modelBuilder.Entity("GolfLeagueApi.Models.Team", b =>
                 {
                     b.Navigation("TeamMemberships");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Matchup", b =>
-                {
-                    b.Navigation("Pairing");
-                });
-
-            modelBuilder.Entity("GolfLeagueApi.Models.Pairing", b =>
-                {
-                    b.Navigation("PairingSlots");
                 });
 
             modelBuilder.Entity("GolfLeagueApi.Models.Week", b =>

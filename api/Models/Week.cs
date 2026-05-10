@@ -2,6 +2,8 @@ namespace GolfLeagueApi.Models;
 
 public enum WeekType { Regular, FunWeek, MakeupDay }
 
+public enum NineType { Front, Back, Full }
+
 public class Week
 {
     public Guid Id { get; set; }
@@ -9,6 +11,7 @@ public class Week
     public int WeekNumber { get; set; }
     public DateOnly StartDate { get; set; }
     public WeekType Type { get; set; } = WeekType.Regular;
+    public NineType Nine { get; set; } = NineType.Front;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
