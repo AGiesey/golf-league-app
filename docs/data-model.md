@@ -235,8 +235,9 @@ handicap changes over time.
   co-commissioners.
 
 ### Team
-A pair (or group) of golfers playing together within a season. Teams are locked
-once a season starts at MVP; mid-season team changes are post-MVP.
+A pair (or group) of golfers playing together within a season. Team membership
+(which golfers are on a team) is locked once a season starts. Team names can be
+renamed by a commissioner at any time, including mid-season.
 
 ### TeamMembership
 Joins a `LeagueMembership` to a `Team`. A golfer can only be on one team per
