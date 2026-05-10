@@ -558,6 +558,57 @@ commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext
     return Results.NoContent();
 });
 
+// GET /commissioner/season/matchups/unscheduled-teams?weekId=<id>
+commissioner.MapGet("/season/matchups/unscheduled-teams", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == weekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.NotFound();
+
+    var unscheduled = await db.Teams
+        .Where(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null &&
+                    !db.Matchups.Any(m => m.WeekId == weekId && (m.TeamAId == t.Id || m.TeamBId == t.Id)))
+        .OrderBy(t => t.Name)
+        .Select(t => new { teamId = t.Id, name = t.Name })
+        .ToListAsync();
+
+    return Results.Ok(unscheduled);
+});
+
+// GET /commissioner/season/pairing-history
+commissioner.MapGet("/season/pairing-history", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var priorMatchups = await db.Matchups
+        .Where(m => m.Week.SeasonId == membership.SeasonId && m.Week.Type == WeekType.Regular)
+        .Select(m => new { m.TeamAId, m.TeamBId, m.Week.WeekNumber })
+        .ToListAsync();
+
+    var history = priorMatchups
+        .GroupBy(m =>
+        {
+            var aStr = m.TeamAId.ToString();
+            var bStr = m.TeamBId.ToString();
+            return string.Compare(aStr, bStr, StringComparison.Ordinal) < 0
+                ? new { A = m.TeamAId, B = m.TeamBId }
+                : new { A = m.TeamBId, B = m.TeamAId };
+        })
+        .Select(g => new
+        {
+            teamAId = g.Key.A,
+            teamBId = g.Key.B,
+            count = g.Count(),
+            firstWeekNumber = g.Min(m => m.WeekNumber),
+        })
+        .ToList();
+
+    return Results.Ok(history);
+});
+
 // GET /commissioner/season/matchups?weekId=<id>
 commissioner.MapGet("/season/matchups", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
 {

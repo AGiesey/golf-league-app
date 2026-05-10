@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Lock, Pencil, Trash2, Plus } from "lucide-react";
+import { Loader2, Lock, Pencil, Trash2, Plus, AlertTriangle } from "lucide-react";
 import { apiFetchAuthenticated } from "@/lib/api";
+import { PairingHistoryMatrix } from "./PairingHistoryMatrix";
 
 interface Week {
   id: string;
@@ -35,6 +36,18 @@ interface Team {
   teamId: string;
   name: string;
   members: { leagueMembershipId: string; firstName: string; lastName: string }[];
+}
+
+interface UnscheduledTeam {
+  teamId: string;
+  name: string;
+}
+
+export interface PairingHistoryEntry {
+  teamAId: string;
+  teamBId: string;
+  count: number;
+  firstWeekNumber: number;
 }
 
 interface FormState {
@@ -79,6 +92,8 @@ export function MatchupsClient({
 
   const [selectedWeekId, setSelectedWeekId] = useState<string | undefined>(defaultWeekId);
   const [matchups, setMatchups] = useState<Matchup[] | null>(null);
+  const [unscheduledTeams, setUnscheduledTeams] = useState<UnscheduledTeam[] | null>(null);
+  const [pairingHistory, setPairingHistory] = useState<PairingHistoryEntry[] | null>(null);
   const [loadingMatchups, setLoadingMatchups] = useState(false);
   const [matchupsError, setMatchupsError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(CLOSED_FORM);
@@ -87,18 +102,38 @@ export function MatchupsClient({
   const selectedWeek = weeks.find((w) => w.id === selectedWeekId);
   const isRegularWeek = selectedWeek?.type === "Regular";
 
+  async function fetchWeekData(weekId: string) {
+    const [newMatchups, newUnscheduled, newHistory] = await Promise.all([
+      apiFetchAuthenticated<Matchup[]>(
+        `/commissioner/season/matchups?weekId=${weekId}`,
+        token,
+        { headers },
+      ),
+      apiFetchAuthenticated<UnscheduledTeam[]>(
+        `/commissioner/season/matchups/unscheduled-teams?weekId=${weekId}`,
+        token,
+        { headers },
+      ),
+      apiFetchAuthenticated<PairingHistoryEntry[]>(
+        "/commissioner/season/pairing-history",
+        token,
+        { headers },
+      ),
+    ]);
+    setMatchups(newMatchups);
+    setUnscheduledTeams(newUnscheduled);
+    setPairingHistory(newHistory);
+  }
+
   useEffect(() => {
     if (!selectedWeekId) return;
     setMatchups(null);
+    setUnscheduledTeams(null);
+    setPairingHistory(null);
     setMatchupsError(null);
     setLoadingMatchups(true);
-    apiFetchAuthenticated<Matchup[]>(
-      `/commissioner/season/matchups?weekId=${selectedWeekId}`,
-      token,
-      { headers },
-    )
-      .then(setMatchups)
-      .catch(() => setMatchupsError("Failed to load matchups."))
+    fetchWeekData(selectedWeekId)
+      .catch(() => setMatchupsError("Failed to load matchup data."))
       .finally(() => setLoadingMatchups(false));
   }, [selectedWeekId, membershipId, token]);
 
@@ -107,8 +142,14 @@ export function MatchupsClient({
     router.replace(`?weekId=${weekId}`);
   }
 
-  function openCreateForm() {
-    setForm({ open: true, matchupId: undefined, teamAId: "", teamBId: "", submitting: false });
+  function openCreateForm(preselectedTeamId?: string) {
+    setForm({
+      open: true,
+      matchupId: undefined,
+      teamAId: preselectedTeamId ?? "",
+      teamBId: "",
+      submitting: false,
+    });
   }
 
   function openEditForm(matchup: Matchup) {
@@ -130,7 +171,7 @@ export function MatchupsClient({
     setForm((f) => ({ ...f, submitting: true }));
     try {
       if (form.matchupId) {
-        const updated = await apiFetchAuthenticated<Matchup>(
+        await apiFetchAuthenticated<Matchup>(
           `/commissioner/season/matchups/${form.matchupId}`,
           token,
           {
@@ -139,11 +180,8 @@ export function MatchupsClient({
             body: JSON.stringify({ teamAId: form.teamAId, teamBId: form.teamBId }),
           },
         );
-        setMatchups((prev) =>
-          prev?.map((m) => (m.matchupId === form.matchupId ? updated : m)) ?? null,
-        );
       } else {
-        const created = await apiFetchAuthenticated<Matchup>(
+        await apiFetchAuthenticated<Matchup>(
           "/commissioner/season/matchups",
           token,
           {
@@ -156,9 +194,9 @@ export function MatchupsClient({
             }),
           },
         );
-        setMatchups((prev) => [...(prev ?? []), created]);
       }
       closeForm();
+      await fetchWeekData(selectedWeekId);
     } catch {
       toast.error(form.matchupId ? "Failed to update matchup." : "Failed to create matchup.");
       setForm((f) => ({ ...f, submitting: false }));
@@ -166,6 +204,7 @@ export function MatchupsClient({
   }
 
   async function deleteMatchup(matchupId: string) {
+    if (!selectedWeekId) return;
     setDeleting(matchupId);
     try {
       await apiFetchAuthenticated<void>(
@@ -173,13 +212,21 @@ export function MatchupsClient({
         token,
         { method: "DELETE", headers },
       );
-      setMatchups((prev) => prev?.filter((m) => m.matchupId !== matchupId) ?? null);
+      await fetchWeekData(selectedWeekId);
     } catch {
       toast.error("Failed to delete matchup. Please try again.");
     } finally {
       setDeleting(null);
     }
   }
+
+  // Derived: prior-play warning for the current form selection
+  const pairWarning = (() => {
+    if (!form.teamAId || !form.teamBId || !pairingHistory) return null;
+    const [a, b] = [form.teamAId, form.teamBId].sort();
+    const entry = pairingHistory.find((e) => e.teamAId === a && e.teamBId === b);
+    return entry && entry.count > 0 ? entry.firstWeekNumber : null;
+  })();
 
   if (weeks.length === 0) {
     return (
@@ -215,94 +262,128 @@ export function MatchupsClient({
         </select>
       </div>
 
-      {/* Matchups content */}
+      {/* Loading / error */}
       {!selectedWeekId ? null : loadingMatchups ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
-          Loading matchups…
+          Loading matchup data…
         </div>
       ) : matchupsError ? (
         <p className="text-sm text-destructive">{matchupsError}</p>
-      ) : matchups !== null && matchups.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 rounded border border-dashed border-border p-6">
-          <p className="text-sm text-muted-foreground">No matchups scheduled for this week.</p>
-          {isRegularWeek && (
-            <button
-              onClick={openCreateForm}
-              className="inline-flex items-center gap-2 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-            >
-              <Plus className="size-4" />
-              Create Matchup
-            </button>
+      ) : (
+        <div className="space-y-6">
+          {/* Unscheduled teams */}
+          {isRegularWeek && unscheduledTeams !== null && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Unscheduled Teams
+              </p>
+              {unscheduledTeams.length === 0 ? (
+                <p className="text-sm text-muted-foreground">All teams scheduled this week.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {unscheduledTeams.map((t) => (
+                    <button
+                      key={t.teamId}
+                      onClick={() => openCreateForm(t.teamId)}
+                      className="rounded-full border border-border bg-muted px-3 py-1 text-sm hover:border-primary hover:bg-primary/10 hover:text-primary"
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-        </div>
-      ) : matchups !== null && matchups.length > 0 ? (
-        <div className="space-y-3">
-          <ul className="space-y-2">
-            {matchups.map((m) => (
-              <li
-                key={m.matchupId}
-                className="flex items-start justify-between rounded border border-border p-4"
-              >
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">
-                    {m.teamA.name} vs {m.teamB.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {m.teamA.members
-                      .map((mb) => `${mb.lastName}, ${mb.firstName}`)
-                      .join(" · ")}
-                    {" — "}
-                    {m.teamB.members
-                      .map((mb) => `${mb.lastName}, ${mb.firstName}`)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <div className="ml-4 flex shrink-0 items-center gap-2">
-                  {m.isLocked ? (
-                    <Lock
-                      className="size-4 text-muted-foreground"
-                      aria-label="Locked — scores have been entered"
-                    />
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => openEditForm(m)}
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label="Edit matchup"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteMatchup(m.matchupId)}
-                        disabled={deleting === m.matchupId}
-                        className="text-destructive hover:opacity-70 disabled:opacity-50"
-                        aria-label="Delete matchup"
-                      >
-                        {deleting === m.matchupId ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-4" />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
 
-          {isRegularWeek && (
-            <button
-              onClick={openCreateForm}
-              className="inline-flex items-center gap-2 rounded border border-dashed border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-foreground hover:text-foreground"
-            >
-              <Plus className="size-4" />
-              Add Matchup
-            </button>
+          {/* Matchup list */}
+          {matchups !== null && matchups.length === 0 ? (
+            <div className="flex flex-col items-start gap-3 rounded border border-dashed border-border p-6">
+              <p className="text-sm text-muted-foreground">No matchups scheduled for this week.</p>
+              {isRegularWeek && (
+                <button
+                  onClick={() => openCreateForm()}
+                  className="inline-flex items-center gap-2 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                >
+                  <Plus className="size-4" />
+                  Create Matchup
+                </button>
+              )}
+            </div>
+          ) : matchups !== null && matchups.length > 0 ? (
+            <div className="space-y-3">
+              <ul className="space-y-2">
+                {matchups.map((m) => (
+                  <li
+                    key={m.matchupId}
+                    className="flex items-start justify-between rounded border border-border p-4"
+                  >
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">
+                        {m.teamA.name} vs {m.teamB.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.teamA.members
+                          .map((mb) => `${mb.lastName}, ${mb.firstName}`)
+                          .join(" · ")}
+                        {" — "}
+                        {m.teamB.members
+                          .map((mb) => `${mb.lastName}, ${mb.firstName}`)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <div className="ml-4 flex shrink-0 items-center gap-2">
+                      {m.isLocked ? (
+                        <Lock
+                          className="size-4 text-muted-foreground"
+                          aria-label="Locked — scores have been entered"
+                        />
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => openEditForm(m)}
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Edit matchup"
+                          >
+                            <Pencil className="size-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteMatchup(m.matchupId)}
+                            disabled={deleting === m.matchupId}
+                            className="text-destructive hover:opacity-70 disabled:opacity-50"
+                            aria-label="Delete matchup"
+                          >
+                            {deleting === m.matchupId ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {isRegularWeek && (
+                <button
+                  onClick={() => openCreateForm()}
+                  className="inline-flex items-center gap-2 rounded border border-dashed border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-foreground hover:text-foreground"
+                >
+                  <Plus className="size-4" />
+                  Add Matchup
+                </button>
+              )}
+            </div>
+          ) : null}
+
+          {/* Pairing history matrix */}
+          {pairingHistory !== null && teams.length > 1 && (
+            <PairingHistoryMatrix teams={teams} history={pairingHistory} />
           )}
         </div>
-      ) : null}
+      )}
 
       {/* Create / edit dialog */}
       {form.open && (
@@ -360,6 +441,13 @@ export function MatchupsClient({
                     ))}
                 </select>
               </div>
+
+              {pairWarning !== null && (
+                <div className="flex items-center gap-1.5 rounded bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                  <AlertTriangle className="size-3.5 shrink-0" />
+                  Already played — Week {pairWarning}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end gap-3">

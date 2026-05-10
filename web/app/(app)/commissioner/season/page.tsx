@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
@@ -96,15 +95,6 @@ export default async function CommissionerSeasonPage({
       </div>
 
       <StatusBanner status={status} />
-
-      <div>
-        <Link
-          href="/commissioner/matchups"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          Manage Matchups →
-        </Link>
-      </div>
 
       <SeasonTabs
         status={status}
