@@ -75,6 +75,7 @@ erDiagram
     uuid league_id FK
     string handicap_system
     bool subs_allowed
+    uuid default_tee_box_id FK
   }
   SEASON {
     uuid id PK
@@ -109,6 +110,7 @@ erDiagram
     int week_number
     date start_date
     string type
+    string nine
   }
   MATCHUP {
     uuid id PK
@@ -215,6 +217,8 @@ league plays.
 - `HandicapSystem` — `None` or `LeagueEstablished` at MVP. `GHIN` and others
   post-MVP.
 - `SubsAllowed` — boolean. Subs are allowed at MVP by default.
+- `DefaultTeeBoxId` — nullable FK to `TeeBox`. When set, the score-entry dialog
+  pre-selects this tee box. Null means no default (commissioner picks each time).
 
 This table starts small and grows as new league-level options land. Each new
 option arrives as its own migration with a clear default for existing leagues.
@@ -235,8 +239,9 @@ handicap changes over time.
   co-commissioners.
 
 ### Team
-A pair (or group) of golfers playing together within a season. Teams are locked
-once a season starts at MVP; mid-season team changes are post-MVP.
+A pair (or group) of golfers playing together within a season. Team membership
+(which golfers are on a team) is locked once a season starts. Team names can be
+renamed by a commissioner at any time, including mid-season.
 
 ### TeamMembership
 Joins a `LeagueMembership` to a `Team`. A golfer can only be on one team per
@@ -248,6 +253,11 @@ A scheduled play date within a season.
 - `Type` — `Regular`, `FunWeek`, or `MakeupDay`. Regular weeks generate matchups
   that count toward standings. Fun weeks are reserved tee times outside the
   regular schedule and do not affect standings.
+- `Nine` — `Front`, `Back`, or `Full`. Indicates which holes are played this week.
+  `Front` means holes 1–9; `Back` means holes 10–18; `Full` means all 18 holes.
+  For 9-hole leagues, weeks typically alternate Front and Back — this is a setup
+  convention, not a database constraint. Set at week-creation time (seed SQL); no
+  commissioner-facing UI exists at MVP to change it.
 
 ### Matchup
 Two teams scheduled to play each other on a regular week. Manually created by
@@ -400,6 +410,12 @@ skins pot $5"), it can be added as ledger-style records that track amounts
 without any actual money flow through the system.
 
 ## Known constraints and accepted limitations
+
+**Front/Back nine assumes standard hole numbering.** `Week.Nine = Front` means
+holes 1–9 are played; `Back` means holes 10–18. Courses where the "front nine"
+does not start at hole 1 are not supported by this model. A future
+`model-week-holes-played` proposal could supersede the enum with an explicit
+list of hole IDs.
 
 **Team-based play is assumed.** The model is built around `Team` and
 `Matchup` between teams. Individual-format leagues (no teams) are handled by

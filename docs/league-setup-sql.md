@@ -137,7 +137,47 @@ VALUES (
 
 ---
 
-## Step 5 — League Memberships
+## Step 5 — Weeks
+
+Each `Week` belongs to a season and carries:
+- `week_number` — 1-based, determines display order
+- `start_date` — the calendar date play occurs
+- `type` — `Regular`, `FunWeek`, or `MakeupDay`
+- `nine` — `Front`, `Back`, or `Full` (which holes are played this week)
+
+Valid `nine` values:
+- `'Front'` — holes 1–9
+- `'Back'` — holes 10–18
+- `'Full'` — all 18 holes
+
+The canonical pattern for a 9-hole league is alternating Front/Back weeks:
+
+```sql
+INSERT INTO weeks (id, season_id, week_number, start_date, type, nine, created_at, updated_at) VALUES
+    (gen_random_uuid(), '<season_id>', 1,  '2026-04-30', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 2,  '2026-05-07', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 3,  '2026-05-14', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 4,  '2026-05-21', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 5,  '2026-05-28', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 6,  '2026-06-04', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 7,  '2026-06-11', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 8,  '2026-06-18', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 9,  '2026-06-25', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 10, '2026-07-02', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 11, '2026-07-09', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 12, '2026-07-16', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 13, '2026-07-23', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 14, '2026-07-30', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 15, '2026-08-06', 'Regular', 'Front', NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 16, '2026-08-13', 'Regular', 'Back',  NOW(), NOW()),
+    (gen_random_uuid(), '<season_id>', 17, '2026-08-20', 'FunWeek', 'Full',  NOW(), NOW());
+```
+
+For an 18-hole league, use `'Full'` for every week.
+
+---
+
+## Step 6 — League Memberships
 
 One row per golfer per season. This is where `is_commissioner` is set — it's per-membership, not per-person.
 

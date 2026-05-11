@@ -112,6 +112,15 @@ All components live in `web/components/`. shadcn primitives are in `web/componen
 | `Muted` | Helper text, secondary labels, captions |
 | `Code` | Inline code snippets |
 
+### Scorecard (`components/scorecard/`)
+
+| Component | Role |
+|---|---|
+| `Scorecard` | Renders a 9-hole (or n-hole) score table: hole numbers, par, handicap index, and one score row per slot. Accepts an optional `entryButton` render prop for per-slot action buttons. |
+| `ScorecardView` | Client component. Wraps `Scorecard`(s) with full scorecard data, handles Full-18 two-table layout, and conditionally renders score entry buttons for commissioners. |
+| `ScoreEntryDialog` | Client dialog for creating or editing a round's hole scores. Includes tee box select, sub picker, and per-hole numeric inputs. |
+| `SubPickerInline` | Client component inside `ScoreEntryDialog`. Lets the user select an existing sub or inline-create a new one via `POST /commissioner/seasons/{seasonId}/subs`. |
+
 ### Layout (`components/layout/`)
 
 | Component | Role |

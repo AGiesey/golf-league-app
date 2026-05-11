@@ -85,8 +85,9 @@ Server-side (API endpoints):
 
 Client-side (Next.js):
 
-- The app shell hides the `/commissioner` nav link when
-  `context.isCommissioner` is false. This is **UI only**, not enforcement.
+- The app shell hides the Commissioner nav section (and its items — "Manage
+  Season" and "Manage Matchups") when `context.isCommissioner` is false. This
+  is **UI only**, not enforcement.
 - Route guards on `/commissioner/*` pages check the same flag and redirect
   if false. This is also UI — actual enforcement happens at the API.
 - The pattern: hide what the user can't do, but never *rely* on hiding
@@ -120,10 +121,9 @@ allowed (this is a league — everyone sees everyone's scores).
 A user whose active `LeagueContext` has `isCommissioner = true` can:
 
 - Manage roster (add/remove `LeagueMembership` records)
-- Form and edit teams
-- Create and edit `Matchup`, `Pairing`, `PairingSlot` records
-- Enter and edit `Round` and `HoleScore` records
-- Manage subs
+- Form and edit teams (team membership is locked after season starts; team names can be renamed at any time)
+- Manage matchups (`ManageMatchups`): create, edit, and delete `Matchup`, `Pairing`, and `PairingSlot` records
+- `ManageScores`: create and edit `Round` and `HoleScore` records via `POST /pairing-slots/{slotId}/round`, `PUT /rounds/{roundId}`, and `POST /seasons/{seasonId}/subs`; enforced by the commissioner route group filter
 - Override `MatchResult` records
 - Configure `LeagueConfiguration` for the season's league
 - Create, edit, and delete `Week` records (within the constraints of the

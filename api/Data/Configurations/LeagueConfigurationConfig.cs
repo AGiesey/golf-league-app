@@ -16,5 +16,10 @@ public class LeagueConfigurationConfig : IEntityTypeConfiguration<LeagueConfigur
                .WithOne(l => l.Configuration)
                .HasForeignKey<LeagueConfiguration>(lc => lc.LeagueId)
                .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(lc => lc.DefaultTeeBox)
+               .WithMany()
+               .HasForeignKey(lc => lc.DefaultTeeBoxId)
+               .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -38,19 +38,34 @@ function NavLink({ item }: { item: NavItem }) {
   );
 }
 
-function NavList({ isCommissioner }: { isCommissioner: boolean }) {
-  const items: NavItem[] = [
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "My Profile", href: "/me" },
-    { label: "Scores / Rounds", disabled: true },
-    ...(isCommissioner ? [{ label: "Season", href: "/commissioner/season" }] : []),
-  ];
+const MEMBER_ITEMS: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "My Profile", href: "/me" },
+];
 
+const COMMISSIONER_ITEMS: NavItem[] = [
+  { label: "Manage Season", href: "/commissioner/season" },
+  { label: "Manage Matchups", href: "/commissioner/matchups" },
+  { label: "Manage Scores", href: "/commissioner/scores" },
+];
+
+function NavList({ isCommissioner }: { isCommissioner: boolean }) {
   return (
     <nav className="flex flex-col gap-1">
-      {items.map((item) => (
+      {MEMBER_ITEMS.map((item) => (
         <NavLink key={item.label} item={item} />
       ))}
+
+      {isCommissioner && (
+        <>
+          <p className="mt-4 mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Commissioner
+          </p>
+          {COMMISSIONER_ITEMS.map((item) => (
+            <NavLink key={item.label} item={item} />
+          ))}
+        </>
+      )}
     </nav>
   );
 }

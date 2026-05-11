@@ -16,6 +16,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamMembership> TeamMemberships => Set<TeamMembership>();
     public DbSet<Week> Weeks => Set<Week>();
+    public DbSet<Matchup> Matchups => Set<Matchup>();
+    public DbSet<Pairing> Pairings => Set<Pairing>();
+    public DbSet<PairingSlot> PairingSlots => Set<PairingSlot>();
+    public DbSet<Sub> Subs => Set<Sub>();
+    public DbSet<Round> Rounds => Set<Round>();
+    public DbSet<HoleScore> HoleScores => Set<HoleScore>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

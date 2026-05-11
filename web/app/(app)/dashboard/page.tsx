@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { resolveLeagueContext } from "@/lib/leagueContext";
 import { getAccessToken } from "@/lib/auth";
 import { fetchSetupStatus, fetchSetupComplete } from "@/lib/commissioner";
+import { apiFetch } from "@/lib/api";
 import type { SeasonSetupStatus } from "@/lib/commissioner";
 import {
   Card,
@@ -16,6 +17,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { MatchupWidget } from "./widgets/MatchupWidget";
+import type { MatchupSummary } from "./widgets/MatchupWidget";
+import { UpcomingMatchupWidget } from "./widgets/UpcomingMatchupWidget";
 
 const TAB_MAP: Record<string, string> = {
   Roster: "roster",
@@ -71,6 +75,23 @@ function SetupWidget({ status }: { status: SeasonSetupStatus }) {
   );
 }
 
+async function fetchMatchupSummary(
+  membershipId: string,
+  token: string,
+): Promise<MatchupSummary | null> {
+  try {
+    return await apiFetch<MatchupSummary>("/season/my-matchup-summary", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Membership-Id": membershipId,
+      },
+      cache: "no-store",
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default async function DashboardPage() {
   await connection();
 
@@ -103,6 +124,8 @@ export default async function DashboardPage() {
       );
     }
 
+    const summary = await fetchMatchupSummary(leagueMembershipId, token);
+
     return (
       <div className="space-y-6">
         <Card>
@@ -114,6 +137,8 @@ export default async function DashboardPage() {
             <CardDescription>Season {seasonYear}</CardDescription>
           </CardHeader>
         </Card>
+        <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
+        {summary && <MatchupWidget summary={summary} />}
       </div>
     );
   }
@@ -139,6 +164,8 @@ export default async function DashboardPage() {
     );
   }
 
+  const summary = await fetchMatchupSummary(leagueMembershipId, token);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -147,6 +174,8 @@ export default async function DashboardPage() {
           <CardDescription>Season {seasonYear}</CardDescription>
         </CardHeader>
       </Card>
+      <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
+      {summary && <MatchupWidget summary={summary} />}
     </div>
   );
 }

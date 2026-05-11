@@ -1,4 +1,10 @@
 import { H1, H2, H3, H4, Lead, Body, Muted, Code } from "@/components/typography";
+import { Scorecard } from "@/components/scorecard/Scorecard";
+import type { HoleInfo, SlotScore } from "@/components/scorecard/Scorecard";
+import { ScoreEntryDialogExamples } from "@/components/scorecard/ScoreEntryDialogExamples";
+import { UpcomingMatchupExamples } from "@/components/dashboard/UpcomingMatchupExamples";
+import { WeekListExamples } from "@/components/dashboard/WeekListExamples";
+import { WeekDetailExamples } from "@/components/dashboard/WeekDetailExamples";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -303,9 +309,171 @@ export default function DesignPage() {
           </div>
         </div>
       </section>
+
+      {/* ================================================================
+          ScoreEntryDialog
+      ================================================================ */}
+      <section className="space-y-4">
+        <div>
+          <H2>ScoreEntryDialog</H2>
+          <Muted className="mt-1">
+            Click each button to open the dialog in that state.
+          </Muted>
+        </div>
+        <ScoreEntryDialogExamples />
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Scorecard
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Scorecard</H2>
+          <Muted className="mt-1">
+            Front/Back 9 scorecard table with all four slot states.
+          </Muted>
+        </div>
+
+        <div className="space-y-2">
+          <H3>Not started (no scores)</H3>
+          <Card>
+            <CardContent className="pt-4">
+              <Scorecard holes={DESIGN_HOLES} slots={SLOTS_EMPTY} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-2">
+          <H3>Scores entered</H3>
+          <Card>
+            <CardContent className="pt-4">
+              <Scorecard holes={DESIGN_HOLES} slots={SLOTS_WITH_SCORES} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-2">
+          <H3>Sub played</H3>
+          <Card>
+            <CardContent className="pt-4">
+              <Scorecard holes={DESIGN_HOLES} slots={SLOTS_WITH_SUB} />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Upcoming Matchup Widget
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Upcoming Matchup Widget</H2>
+          <Muted className="mt-1">
+            Dashboard widget — golfer's next matchup. Three states.
+          </Muted>
+        </div>
+        <UpcomingMatchupExamples />
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Commissioner Week List
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Commissioner — Week List</H2>
+          <Muted className="mt-1">
+            Score-entry hub week list. Three status states.
+          </Muted>
+        </div>
+        <WeekListExamples />
+      </section>
+
+      <Separator />
+
+      {/* ================================================================
+          Commissioner Week Detail
+      ================================================================ */}
+      <section className="space-y-6">
+        <div>
+          <H2>Commissioner — Week Detail</H2>
+          <Muted className="mt-1">
+            Per-matchup score-entry status. Three states.
+          </Muted>
+        </div>
+        <WeekDetailExamples />
+      </section>
     </div>
   );
 }
+
+const DESIGN_HOLES: HoleInfo[] = [
+  { id: "h1", number: 1, par: 4, handicapIndex: 7 },
+  { id: "h2", number: 2, par: 3, handicapIndex: 17 },
+  { id: "h3", number: 3, par: 5, handicapIndex: 1 },
+  { id: "h4", number: 4, par: 4, handicapIndex: 11 },
+  { id: "h5", number: 5, par: 4, handicapIndex: 5 },
+  { id: "h6", number: 6, par: 3, handicapIndex: 15 },
+  { id: "h7", number: 7, par: 5, handicapIndex: 3 },
+  { id: "h8", number: 8, par: 4, handicapIndex: 9 },
+  { id: "h9", number: 9, par: 4, handicapIndex: 13 },
+];
+
+const SLOTS_EMPTY: SlotScore[] = [
+  {
+    slotId: "s1",
+    playerName: "Jim Harper",
+    isSubstitute: false,
+    holeScores: Array(9).fill(null),
+    roundId: null,
+  },
+  {
+    slotId: "s2",
+    playerName: "Mike Chen",
+    isSubstitute: false,
+    holeScores: Array(9).fill(null),
+    roundId: null,
+  },
+];
+
+const SLOTS_WITH_SCORES: SlotScore[] = [
+  {
+    slotId: "s1",
+    playerName: "Jim Harper",
+    isSubstitute: false,
+    holeScores: [4, 3, 5, 4, 5, 3, 6, 4, 4],
+    roundId: "r1",
+  },
+  {
+    slotId: "s2",
+    playerName: "Mike Chen",
+    isSubstitute: false,
+    holeScores: [5, 4, 6, 4, 4, 4, 5, 4, 5],
+    roundId: "r2",
+  },
+];
+
+const SLOTS_WITH_SUB: SlotScore[] = [
+  {
+    slotId: "s1",
+    playerName: "Jim Harper",
+    isSubstitute: false,
+    holeScores: [4, 3, 5, 4, 5, 3, 6, 4, 4],
+    roundId: "r1",
+  },
+  {
+    slotId: "s2",
+    playerName: "Dave Torres",
+    isSubstitute: true,
+    holeScores: [5, 4, 6, 4, 4, 4, 5, 4, 5],
+    roundId: "r2",
+  },
+];
 
 function ColorGroup({
   label,

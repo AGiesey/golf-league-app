@@ -16,7 +16,7 @@ The API SHALL expose `GET /commissioner/season/schedule` within the `/commission
 
 #### Scenario: Commissioner receives schedule
 - **WHEN** a commissioner calls `GET /commissioner/season/schedule`
-- **THEN** the API returns HTTP 200 with an array of week objects each containing `id`, `weekNumber`, `startDate`, and `type`, ordered by `weekNumber` ascending
+- **THEN** the API returns HTTP 200 with an array of week objects each containing `id`, `weekNumber`, `startDate`, `type`, and `nine`, ordered by `weekNumber` ascending
 
 #### Scenario: Empty array when no weeks exist
 - **WHEN** no `Week` records exist for the active season
@@ -50,7 +50,7 @@ When weeks exist for the season, the `/commissioner/season?tab=schedule` tab bod
 
 #### Scenario: Table columns
 - **WHEN** the schedule table is displayed
-- **THEN** each row shows the week number, start date (formatted for display), and type
+- **THEN** each row shows the week number, start date (formatted for display), type, and which nine is played (Front / Back / Full)
 
 #### Scenario: Table is read-only
 - **WHEN** a commissioner views the schedule table

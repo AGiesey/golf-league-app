@@ -6,8 +6,10 @@ public class LeagueConfiguration
     public Guid LeagueId { get; set; }
     public string HandicapSystem { get; set; } = null!;
     public bool SubsAllowed { get; set; }
+    public Guid? DefaultTeeBoxId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
     public League League { get; set; } = null!;
+    public TeeBox? DefaultTeeBox { get; set; }
 }

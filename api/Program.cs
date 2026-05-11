@@ -229,6 +229,284 @@ app.MapGet("/season/setup-status", async (HttpContext ctx, AppDbContext db) =>
     return Results.Ok(new { isComplete = status.IsComplete });
 });
 
+// GET /season/my-matchup-summary — returns the member's upcoming and most recent matchup
+app.MapGet("/season/my-matchup-summary", async (HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .Include(m => m.TeamMembership)
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    if (membership.TeamMembership is null)
+        return Results.Ok(new { upcoming = (object?)null, previous = (object?)null });
+
+    var teamId = membership.TeamMembership.TeamId;
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var upcomingRaw = await db.Matchups
+        .Where(m => (m.TeamAId == teamId || m.TeamBId == teamId) && m.Week.SeasonId == membership.SeasonId && m.Week.StartDate >= today)
+        .OrderBy(m => m.Week.StartDate)
+        .Select(m => new
+        {
+            id = m.Id,
+            weekNumber = m.Week.WeekNumber,
+            startDate = m.Week.StartDate,
+            teamAId = m.TeamAId,
+            teamAName = m.TeamA.Name,
+            teamAMembers = m.TeamA.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+            teamBName = m.TeamB.Name,
+            teamBMembers = m.TeamB.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+        })
+        .FirstOrDefaultAsync();
+
+    var previousRaw = await db.Matchups
+        .Where(m => (m.TeamAId == teamId || m.TeamBId == teamId) && m.Week.SeasonId == membership.SeasonId && m.Week.StartDate < today)
+        .OrderByDescending(m => m.Week.StartDate)
+        .Select(m => new
+        {
+            id = m.Id,
+            weekNumber = m.Week.WeekNumber,
+            startDate = m.Week.StartDate,
+            teamAId = m.TeamAId,
+            teamAName = m.TeamA.Name,
+            teamAMembers = m.TeamA.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+            teamBName = m.TeamB.Name,
+            teamBMembers = m.TeamB.TeamMemberships.Select(tm => new { firstName = tm.LeagueMembership.Golfer.FirstName, lastName = tm.LeagueMembership.Golfer.LastName }),
+            hasResults = m.Pairing != null && m.Pairing.PairingSlots.Any(s => s.Round != null),
+        })
+        .FirstOrDefaultAsync();
+
+    var iAmUpcomingTeamA = upcomingRaw?.teamAId == teamId;
+    var upcoming = upcomingRaw is null ? null : (object)new
+    {
+        matchupId = upcomingRaw.id,
+        weekNumber = upcomingRaw.weekNumber,
+        startDate = upcomingRaw.startDate,
+        myTeam = new { name = iAmUpcomingTeamA ? upcomingRaw.teamAName : upcomingRaw.teamBName, members = iAmUpcomingTeamA ? upcomingRaw.teamAMembers : upcomingRaw.teamBMembers },
+        opponent = new { name = iAmUpcomingTeamA ? upcomingRaw.teamBName : upcomingRaw.teamAName, members = iAmUpcomingTeamA ? upcomingRaw.teamBMembers : upcomingRaw.teamAMembers },
+    };
+
+    var iAmPreviousTeamA = previousRaw?.teamAId == teamId;
+    var previous = previousRaw is null ? null : (object)new
+    {
+        matchupId = previousRaw.id,
+        weekNumber = previousRaw.weekNumber,
+        startDate = previousRaw.startDate,
+        myTeam = new { name = iAmPreviousTeamA ? previousRaw.teamAName : previousRaw.teamBName, members = iAmPreviousTeamA ? previousRaw.teamAMembers : previousRaw.teamBMembers },
+        opponent = new { name = iAmPreviousTeamA ? previousRaw.teamBName : previousRaw.teamAName, members = iAmPreviousTeamA ? previousRaw.teamBMembers : previousRaw.teamAMembers },
+        hasResults = previousRaw.hasResults,
+    };
+
+    return Results.Ok(new { upcoming, previous });
+});
+
+// GET /me/upcoming-matchups — returns the golfer's matchups in the next upcoming week
+app.MapGet("/me/upcoming-matchups", async (HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .Include(m => m.TeamMembership)
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    if (membership.TeamMembership is null)
+        return Results.Ok(new { matchups = Array.Empty<object>(), reason = "no_matchup_this_week" });
+
+    var teamId = membership.TeamMembership.TeamId;
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var upcomingWeekId = await db.Weeks
+        .Where(w => w.SeasonId == membership.SeasonId && w.StartDate >= today)
+        .OrderBy(w => w.StartDate)
+        .Select(w => (Guid?)w.Id)
+        .FirstOrDefaultAsync();
+
+    if (upcomingWeekId is null)
+        return Results.Ok(new { matchups = Array.Empty<object>(), reason = "no_upcoming_week" });
+
+    var matchups = await db.Matchups
+        .Where(m => m.Week.Id == upcomingWeekId && (m.TeamAId == teamId || m.TeamBId == teamId))
+        .Select(m => new
+        {
+            matchupId = m.Id,
+            week = new
+            {
+                number = m.Week.WeekNumber,
+                startDate = m.Week.StartDate,
+                nine = m.Week.Nine.ToString(),
+            },
+            teamAId = m.TeamAId,
+            teamAName = m.TeamA.Name,
+            teamBName = m.TeamB.Name,
+            pairings = m.Pairing == null ? Array.Empty<object>() : new[]
+            {
+                new
+                {
+                    teeTime = m.Pairing.TeeTime.HasValue ? m.Pairing.TeeTime.Value.ToString("HH:mm") : null,
+                    slots = m.Pairing.PairingSlots.Select(s => new
+                    {
+                        slotId = s.Id,
+                        playerName = s.LeagueMembership.Golfer.FirstName + " " + s.LeagueMembership.Golfer.LastName,
+                        hasRound = s.Round != null,
+                    }).ToList(),
+                },
+            },
+        })
+        .ToListAsync();
+
+    if (matchups.Count == 0)
+        return Results.Ok(new { matchups = Array.Empty<object>(), reason = "no_matchup_this_week" });
+
+    var result = matchups.Select(m => new
+    {
+        matchupId = m.matchupId,
+        week = m.week,
+        myTeam = new { name = m.teamAId == teamId ? m.teamAName : m.teamBName },
+        opponentTeam = new { name = m.teamAId == teamId ? m.teamBName : m.teamAName },
+        pairings = m.pairings,
+    });
+
+    return Results.Ok(new { matchups = result });
+});
+
+// GET /matchups/{matchupId}/scorecard — any league member in the matchup's season can read
+app.MapGet("/matchups/{matchupId}/scorecard", async (Guid matchupId, HttpContext ctx, AppDbContext db) =>
+{
+    var golfer = ctx.RequireGolfer();
+    if (golfer is null)
+        return Results.Json(new { error = "missing_token" }, statusCode: 401);
+
+    var membershipIdStr = ctx.Request.Headers["X-Membership-Id"].FirstOrDefault();
+    if (!Guid.TryParse(membershipIdStr, out var membershipId))
+        return Results.Json(new { error = "missing_membership" }, statusCode: 400);
+
+    var membership = await db.LeagueMemberships
+        .FirstOrDefaultAsync(m => m.Id == membershipId && m.GolferId == golfer.Id && m.ArchivedAt == null);
+
+    if (membership is null)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var matchup = await db.Matchups
+        .Include(m => m.Week)
+        .Include(m => m.TeamA)
+        .Include(m => m.TeamB)
+        .FirstOrDefaultAsync(m => m.Id == matchupId);
+
+    if (matchup is null)
+        return Results.NotFound();
+
+    if (matchup.Week.SeasonId != membership.SeasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var courseId = await db.Seasons
+        .Where(s => s.Id == matchup.Week.SeasonId)
+        .Select(s => s.League.CourseId)
+        .FirstAsync();
+
+    var allHoles = await db.Holes
+        .Where(h => h.CourseId == courseId)
+        .OrderBy(h => h.Number)
+        .ToListAsync();
+
+    var holes = matchup.Week.Nine switch
+    {
+        NineType.Front => allHoles.Where(h => h.Number <= 9).ToList(),
+        NineType.Back => allHoles.Where(h => h.Number > 9).ToList(),
+        _ => allHoles
+    };
+
+    var pairing = await db.Pairings
+        .Include(p => p.PairingSlots).ThenInclude(s => s.LeagueMembership).ThenInclude(lm => lm.Golfer)
+        .Include(p => p.PairingSlots).ThenInclude(s => s.Round).ThenInclude(r => r.TeeBox)
+        .Include(p => p.PairingSlots).ThenInclude(s => s.Round).ThenInclude(r => r.Sub)
+        .Include(p => p.PairingSlots).ThenInclude(s => s.Round).ThenInclude(r => r.HoleScores)
+        .FirstOrDefaultAsync(p => p.MatchupId == matchupId);
+
+    var pairingDto = pairing is null ? null : (object)new
+    {
+        pairingId = pairing.Id,
+        teeTime = pairing.TeeTime,
+        slots = pairing.PairingSlots.Select(slot =>
+        {
+            var round = slot.Round;
+            Dictionary<Guid, HoleScore> scoreByHole = round is null
+                ? []
+                : round.HoleScores.ToDictionary(hs => hs.HoleId);
+            return new
+            {
+                slotId = slot.Id,
+                leagueMembership = new
+                {
+                    id = slot.LeagueMembership.Id,
+                    firstName = slot.LeagueMembership.Golfer.FirstName,
+                    lastName = slot.LeagueMembership.Golfer.LastName,
+                    handicap = slot.LeagueMembership.Handicap,
+                },
+                round = round is null ? null : (object)new
+                {
+                    roundId = round.Id,
+                    teeBox = new { id = round.TeeBox.Id, name = round.TeeBox.Name },
+                    sub = round.Sub is null ? null : (object)new
+                    {
+                        id = round.Sub.Id,
+                        firstName = round.Sub.FirstName,
+                        lastName = round.Sub.LastName,
+                        handicap = round.Sub.Handicap,
+                    },
+                    holeScores = holes.Select(h => new
+                    {
+                        strokes = scoreByHole.TryGetValue(h.Id, out var hs) ? hs.Strokes : (int?)null
+                    }).ToList()
+                }
+            };
+        }).ToList()
+    };
+
+    var teeBoxes = await db.TeeBoxes
+        .Where(t => t.CourseId == courseId)
+        .OrderBy(t => t.Name)
+        .Select(t => new { id = t.Id, name = t.Name })
+        .ToListAsync();
+
+    var defaultTeeBoxId = await db.LeagueConfigurations
+        .Where(lc => lc.League.Seasons.Any(s => s.Id == matchup.Week.SeasonId))
+        .Select(lc => lc.DefaultTeeBoxId)
+        .FirstOrDefaultAsync();
+
+    return Results.Ok(new
+    {
+        matchupId = matchup.Id,
+        weekNumber = matchup.Week.WeekNumber,
+        nine = matchup.Week.Nine.ToString(),
+        startDate = matchup.Week.StartDate,
+        teamA = new { teamId = matchup.TeamAId, name = matchup.TeamA.Name },
+        teamB = new { teamId = matchup.TeamBId, name = matchup.TeamB.Name },
+        holes = holes.Select(h => new { id = h.Id, number = h.Number, par = h.Par, handicapIndex = h.HandicapIndex }),
+        teeBoxes,
+        defaultTeeBoxId,
+        pairing = pairingDto
+    });
+});
+
 // Commissioner route group — requires X-Membership-Id header for a commissioner membership
 var commissioner = app.MapGroup("/commissioner").AddEndpointFilter(async (ctx, next) =>
 {
@@ -430,10 +708,32 @@ commissioner.MapGet("/season/schedule", async (HttpContext ctx, AppDbContext db)
             id = w.Id,
             weekNumber = w.WeekNumber,
             startDate = w.StartDate,
-            type = w.Type.ToString()
+            type = w.Type.ToString(),
+            nine = w.Nine.ToString()
         })
         .ToListAsync();
     return Results.Ok(weeks);
+});
+
+// PATCH /commissioner/season/teams/{teamId}/name — rename a team (allowed before and after season start)
+commissioner.MapPatch("/season/teams/{teamId}/name", async (Guid teamId, RenameTeamRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (string.IsNullOrWhiteSpace(req.Name))
+        return Results.Json(new { error = "name_required" }, statusCode: 422);
+
+    var team = await db.Teams
+        .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == membership.SeasonId && t.ArchivedAt == null);
+
+    if (team is null)
+        return Results.NotFound();
+
+    team.Name = req.Name.Trim();
+    team.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { teamId = team.Id, name = team.Name });
 });
 
 // DELETE /commissioner/season/teams/{teamId} — disband a team
@@ -456,6 +756,610 @@ commissioner.MapDelete("/season/teams/{teamId}", async (Guid teamId, HttpContext
     db.TeamMemberships.RemoveRange(team.TeamMemberships);
     team.ArchivedAt = DateTime.UtcNow;
     team.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
+// GET /commissioner/season/matchups/unscheduled-teams?weekId=<id>
+commissioner.MapGet("/season/matchups/unscheduled-teams", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == weekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.NotFound();
+
+    var unscheduled = await db.Teams
+        .Where(t => t.SeasonId == membership.SeasonId && t.ArchivedAt == null &&
+                    !db.Matchups.Any(m => m.WeekId == weekId && (m.TeamAId == t.Id || m.TeamBId == t.Id)))
+        .OrderBy(t => t.Name)
+        .Select(t => new { teamId = t.Id, name = t.Name })
+        .ToListAsync();
+
+    return Results.Ok(unscheduled);
+});
+
+// GET /commissioner/season/pairing-history
+commissioner.MapGet("/season/pairing-history", async (HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var priorMatchups = await db.Matchups
+        .Where(m => m.Week.SeasonId == membership.SeasonId && m.Week.Type == WeekType.Regular)
+        .Select(m => new { m.TeamAId, m.TeamBId, m.Week.WeekNumber })
+        .ToListAsync();
+
+    var history = priorMatchups
+        .GroupBy(m =>
+        {
+            var aStr = m.TeamAId.ToString();
+            var bStr = m.TeamBId.ToString();
+            return string.Compare(aStr, bStr, StringComparison.Ordinal) < 0
+                ? new { A = m.TeamAId, B = m.TeamBId }
+                : new { A = m.TeamBId, B = m.TeamAId };
+        })
+        .Select(g => new
+        {
+            teamAId = g.Key.A,
+            teamBId = g.Key.B,
+            count = g.Count(),
+            firstWeekNumber = g.Min(m => m.WeekNumber),
+        })
+        .ToList();
+
+    return Results.Ok(history);
+});
+
+// GET /commissioner/season/matchups?weekId=<id>
+commissioner.MapGet("/season/matchups", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == weekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.NotFound();
+
+    var matchups = await db.Matchups
+        .Where(m => m.WeekId == weekId)
+        .Select(m => new
+        {
+            matchupId = m.Id,
+            teamA = new
+            {
+                teamId = m.TeamA.Id,
+                name = m.TeamA.Name,
+                members = m.TeamA.TeamMemberships.Select(tm => new
+                {
+                    firstName = tm.LeagueMembership.Golfer.FirstName,
+                    lastName = tm.LeagueMembership.Golfer.LastName
+                })
+            },
+            teamB = new
+            {
+                teamId = m.TeamB.Id,
+                name = m.TeamB.Name,
+                members = m.TeamB.TeamMemberships.Select(tm => new
+                {
+                    firstName = tm.LeagueMembership.Golfer.FirstName,
+                    lastName = tm.LeagueMembership.Golfer.LastName
+                })
+            },
+            isLocked = false // TODO: replace with Round existence check when score entry lands
+        })
+        .ToListAsync();
+
+    return Results.Ok(matchups);
+});
+
+// POST /commissioner/season/matchups
+commissioner.MapPost("/season/matchups", async (CreateMatchupRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (req.TeamAId == req.TeamBId)
+        return Results.Json(new { error = "same_team" }, statusCode: 422);
+
+    var week = await db.Weeks
+        .FirstOrDefaultAsync(w => w.Id == req.WeekId && w.SeasonId == membership.SeasonId);
+    if (week is null)
+        return Results.Json(new { error = "invalid_week" }, statusCode: 422);
+    if (week.Type != WeekType.Regular)
+        return Results.Json(new { error = "week_not_regular" }, statusCode: 422);
+
+    var teamIds = new[] { req.TeamAId, req.TeamBId };
+    var teams = await db.Teams
+        .Include(t => t.TeamMemberships)
+            .ThenInclude(tm => tm.LeagueMembership)
+                .ThenInclude(m => m.Golfer)
+        .Where(t => teamIds.Contains(t.Id) && t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
+        .ToListAsync();
+
+    if (teams.Count != 2)
+        return Results.Json(new { error = "invalid_team" }, statusCode: 422);
+    if (teams.Any(t => !t.TeamMemberships.Any()))
+        return Results.Json(new { error = "empty_team" }, statusCode: 422);
+
+    var alreadyScheduled = await db.Matchups
+        .AnyAsync(m => m.WeekId == req.WeekId && (teamIds.Contains(m.TeamAId) || teamIds.Contains(m.TeamBId)));
+    if (alreadyScheduled)
+        return Results.Json(new { error = "team_already_scheduled" }, statusCode: 409);
+
+    var now = DateTime.UtcNow;
+    var matchup = new Matchup
+    {
+        Id = Guid.NewGuid(),
+        WeekId = req.WeekId,
+        TeamAId = req.TeamAId,
+        TeamBId = req.TeamBId,
+        CreatedBy = membership.Id,
+        UpdatedBy = membership.Id,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Matchups.Add(matchup);
+
+    var pairing = new Pairing
+    {
+        Id = Guid.NewGuid(),
+        MatchupId = matchup.Id,
+        CreatedBy = membership.Id,
+        UpdatedBy = membership.Id,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Pairings.Add(pairing);
+
+    foreach (var team in teams)
+    {
+        foreach (var tm in team.TeamMemberships)
+        {
+            db.PairingSlots.Add(new PairingSlot
+            {
+                Id = Guid.NewGuid(),
+                PairingId = pairing.Id,
+                LeagueMembershipId = tm.LeagueMembershipId,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+    }
+
+    await db.SaveChangesAsync();
+
+    var teamA = teams.First(t => t.Id == req.TeamAId);
+    var teamB = teams.First(t => t.Id == req.TeamBId);
+    return Results.Created($"/commissioner/season/matchups/{matchup.Id}", new
+    {
+        matchupId = matchup.Id,
+        teamA = new
+        {
+            teamId = teamA.Id,
+            name = teamA.Name,
+            members = teamA.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        teamB = new
+        {
+            teamId = teamB.Id,
+            name = teamB.Name,
+            members = teamB.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        isLocked = false
+    });
+});
+
+// PUT /commissioner/season/matchups/{matchupId}
+commissioner.MapPut("/season/matchups/{matchupId}", async (Guid matchupId, UpdateMatchupRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (req.TeamAId == req.TeamBId)
+        return Results.Json(new { error = "same_team" }, statusCode: 422);
+
+    var matchup = await db.Matchups
+        .Include(m => m.Pairing)
+            .ThenInclude(p => p.PairingSlots)
+        .Include(m => m.Week)
+        .FirstOrDefaultAsync(m => m.Id == matchupId && m.Week.SeasonId == membership.SeasonId);
+
+    if (matchup is null)
+        return Results.NotFound();
+
+    var isLocked = false; // TODO: replace with Round existence check when score entry lands
+    if (isLocked)
+        return Results.Json(new { error = "matchup_locked" }, statusCode: 409);
+
+    var teamIds = new[] { req.TeamAId, req.TeamBId };
+    var teams = await db.Teams
+        .Include(t => t.TeamMemberships)
+            .ThenInclude(tm => tm.LeagueMembership)
+                .ThenInclude(m => m.Golfer)
+        .Where(t => teamIds.Contains(t.Id) && t.SeasonId == membership.SeasonId && t.ArchivedAt == null)
+        .ToListAsync();
+
+    if (teams.Count != 2)
+        return Results.Json(new { error = "invalid_team" }, statusCode: 422);
+    if (teams.Any(t => !t.TeamMemberships.Any()))
+        return Results.Json(new { error = "empty_team" }, statusCode: 422);
+
+    var alreadyScheduled = await db.Matchups
+        .AnyAsync(m => m.WeekId == matchup.WeekId && m.Id != matchupId &&
+                       (teamIds.Contains(m.TeamAId) || teamIds.Contains(m.TeamBId)));
+    if (alreadyScheduled)
+        return Results.Json(new { error = "team_already_scheduled" }, statusCode: 409);
+
+    var now = DateTime.UtcNow;
+    matchup.TeamAId = req.TeamAId;
+    matchup.TeamBId = req.TeamBId;
+    matchup.UpdatedBy = membership.Id;
+    matchup.UpdatedAt = now;
+
+    matchup.Pairing.UpdatedBy = membership.Id;
+    matchup.Pairing.UpdatedAt = now;
+
+    db.PairingSlots.RemoveRange(matchup.Pairing.PairingSlots);
+
+    foreach (var team in teams)
+    {
+        foreach (var tm in team.TeamMemberships)
+        {
+            db.PairingSlots.Add(new PairingSlot
+            {
+                Id = Guid.NewGuid(),
+                PairingId = matchup.Pairing.Id,
+                LeagueMembershipId = tm.LeagueMembershipId,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+    }
+
+    await db.SaveChangesAsync();
+
+    var teamA = teams.First(t => t.Id == req.TeamAId);
+    var teamB = teams.First(t => t.Id == req.TeamBId);
+    return Results.Ok(new
+    {
+        matchupId = matchup.Id,
+        teamA = new
+        {
+            teamId = teamA.Id,
+            name = teamA.Name,
+            members = teamA.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        teamB = new
+        {
+            teamId = teamB.Id,
+            name = teamB.Name,
+            members = teamB.TeamMemberships.Select(tm => new
+            {
+                firstName = tm.LeagueMembership.Golfer.FirstName,
+                lastName = tm.LeagueMembership.Golfer.LastName
+            })
+        },
+        isLocked = false
+    });
+});
+
+// GET /commissioner/seasons/{seasonId}/score-entry/weeks — all weeks with aggregate round counts
+commissioner.MapGet("/seasons/{seasonId}/score-entry/weeks", async (Guid seasonId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (membership.SeasonId != seasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var weeks = await db.Weeks
+        .Where(w => w.SeasonId == seasonId)
+        .OrderByDescending(w => w.StartDate)
+        .Select(w => new
+        {
+            weekId = w.Id,
+            weekNumber = w.WeekNumber,
+            startDate = w.StartDate,
+            type = w.Type.ToString(),
+            nine = w.Nine.ToString(),
+            matchupCount = w.Matchups.Count(),
+            slotCount = w.Matchups.Sum(m => m.Pairing == null ? 0 : m.Pairing.PairingSlots.Count()),
+            roundCount = w.Matchups.Sum(m => m.Pairing == null ? 0 : m.Pairing.PairingSlots.Count(s => s.Round != null)),
+        })
+        .ToListAsync();
+
+    return Results.Ok(new { weeks });
+});
+
+// GET /commissioner/weeks/{weekId}/score-entry — one week's matchups with per-matchup counts
+commissioner.MapGet("/weeks/{weekId}/score-entry", async (Guid weekId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var week = await db.Weeks
+        .Where(w => w.Id == weekId)
+        .Select(w => new { w.Id, w.SeasonId, w.WeekNumber, w.StartDate, type = w.Type.ToString(), nine = w.Nine.ToString() })
+        .FirstOrDefaultAsync();
+
+    if (week is null)
+        return Results.NotFound();
+
+    if (week.SeasonId != membership.SeasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    var matchupsRaw = await db.Matchups
+        .Where(m => m.Week.Id == weekId)
+        .Select(m => new
+        {
+            matchupId = m.Id,
+            teamAName = m.TeamA.Name,
+            teamBName = m.TeamB.Name,
+            teeTime = m.Pairing != null ? m.Pairing.TeeTime : (TimeOnly?)null,
+            playerNames = m.Pairing != null
+                ? m.Pairing.PairingSlots.Select(s => s.LeagueMembership.Golfer.FirstName + " " + s.LeagueMembership.Golfer.LastName).ToList()
+                : new List<string>(),
+            slotCount = m.Pairing == null ? 0 : m.Pairing.PairingSlots.Count(),
+            roundCount = m.Pairing == null ? 0 : m.Pairing.PairingSlots.Count(s => s.Round != null),
+        })
+        .ToListAsync();
+
+    var matchups = matchupsRaw.Select(m => new
+    {
+        matchupId = m.matchupId,
+        teamA = new { name = m.teamAName },
+        teamB = new { name = m.teamBName },
+        pairings = m.slotCount > 0 ? new[]
+        {
+            new
+            {
+                teeTime = m.teeTime?.ToString("HH:mm"),
+                slots = m.playerNames.Select(p => new { playerName = p }).ToList(),
+            },
+        } : Array.Empty<object>(),
+        slotCount = m.slotCount,
+        roundCount = m.roundCount,
+    });
+
+    return Results.Ok(new
+    {
+        weekId = week.Id,
+        weekNumber = week.WeekNumber,
+        startDate = week.StartDate,
+        type = week.type,
+        nine = week.nine,
+        matchups,
+    });
+});
+
+// POST /commissioner/seasons/{seasonId}/subs — create a sub for the active season
+commissioner.MapPost("/seasons/{seasonId}/subs", async (Guid seasonId, CreateSubRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    if (membership.SeasonId != seasonId)
+        return Results.Json(new { error = "forbidden" }, statusCode: 403);
+
+    if (string.IsNullOrWhiteSpace(req.FirstName) || string.IsNullOrWhiteSpace(req.LastName))
+        return Results.Json(new { error = "invalid_request" }, statusCode: 422);
+
+    var sub = new Sub
+    {
+        FirstName = req.FirstName.Trim(),
+        LastName = req.LastName.Trim(),
+        Handicap = req.Handicap,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+    };
+
+    db.Subs.Add(sub);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/subs/{sub.Id}", new
+    {
+        id = sub.Id,
+        firstName = sub.FirstName,
+        lastName = sub.LastName,
+        handicap = sub.Handicap,
+    });
+});
+
+// POST /commissioner/pairing-slots/{slotId}/round — create a round for a pairing slot
+commissioner.MapPost("/pairing-slots/{slotId}/round", async (Guid slotId, CreateRoundRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var slot = await db.PairingSlots
+        .Include(s => s.Pairing).ThenInclude(p => p.Matchup).ThenInclude(m => m.Week)
+        .Include(s => s.Round)
+        .FirstOrDefaultAsync(s => s.Id == slotId);
+
+    if (slot is null || slot.Pairing.Matchup.Week.SeasonId != membership.SeasonId)
+        return Results.NotFound();
+
+    if (slot.Round is not null)
+        return Results.Json(new { error = "round_exists" }, statusCode: 409);
+
+    var week = slot.Pairing.Matchup.Week;
+    var expectedCount = week.Nine == NineType.Full ? 18 : 9;
+
+    if (req.HoleScores.Count != expectedCount)
+        return Results.Json(new { error = "invalid_hole_count" }, statusCode: 422);
+
+    if (req.HoleScores.Any(hs => hs.Strokes is not null && hs.Strokes <= 0))
+        return Results.Json(new { error = "invalid_strokes" }, statusCode: 422);
+
+    var courseId = await db.Seasons
+        .Where(s => s.Id == membership.SeasonId)
+        .Select(s => s.League.CourseId)
+        .FirstAsync();
+
+    var expectedHoles = await db.Holes
+        .Where(h => h.CourseId == courseId)
+        .OrderBy(h => h.Number)
+        .ToListAsync();
+
+    var relevantHoles = week.Nine switch
+    {
+        NineType.Front => expectedHoles.Where(h => h.Number <= 9).ToList(),
+        NineType.Back => expectedHoles.Where(h => h.Number > 9).ToList(),
+        _ => expectedHoles
+    };
+
+    var providedHoleIds = req.HoleScores.Select(hs => hs.HoleId).ToHashSet();
+    var expectedHoleIds = relevantHoles.Select(h => h.Id).ToHashSet();
+    if (!providedHoleIds.SetEquals(expectedHoleIds))
+        return Results.Json(new { error = "invalid_holes" }, statusCode: 422);
+
+    var teeBox = await db.TeeBoxes.FirstOrDefaultAsync(t => t.Id == req.TeeBoxId && t.CourseId == courseId);
+    if (teeBox is null)
+        return Results.Json(new { error = "invalid_tee_box" }, statusCode: 422);
+
+    var now = DateTime.UtcNow;
+    var round = new Round
+    {
+        PairingSlotId = slotId,
+        LeagueMembershipId = req.SubId is null ? slot.LeagueMembershipId : null,
+        SubId = req.SubId,
+        TeeBoxId = req.TeeBoxId,
+        CreatedBy = membership.Id,
+        UpdatedBy = membership.Id,
+        CreatedAt = now,
+        UpdatedAt = now,
+        HoleScores = req.HoleScores.Select(hs => new HoleScore
+        {
+            HoleId = hs.HoleId,
+            Strokes = hs.Strokes,
+            CreatedAt = now,
+            UpdatedAt = now,
+        }).ToList()
+    };
+
+    db.Rounds.Add(round);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/rounds/{round.Id}", new
+    {
+        roundId = round.Id,
+        slotId = round.PairingSlotId,
+        teeBoxId = round.TeeBoxId,
+        leagueMembershipId = round.LeagueMembershipId,
+        subId = round.SubId,
+    });
+});
+
+// PUT /commissioner/rounds/{roundId} — replace all hole scores for a round
+commissioner.MapPut("/rounds/{roundId}", async (Guid roundId, UpdateRoundRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var round = await db.Rounds
+        .Include(r => r.PairingSlot).ThenInclude(s => s.Pairing).ThenInclude(p => p.Matchup).ThenInclude(m => m.Week)
+        .Include(r => r.HoleScores)
+        .FirstOrDefaultAsync(r => r.Id == roundId);
+
+    if (round is null || round.PairingSlot.Pairing.Matchup.Week.SeasonId != membership.SeasonId)
+        return Results.NotFound();
+
+    var week = round.PairingSlot.Pairing.Matchup.Week;
+    var expectedCount = week.Nine == NineType.Full ? 18 : 9;
+
+    if (req.HoleScores.Count != expectedCount)
+        return Results.Json(new { error = "invalid_hole_count" }, statusCode: 422);
+
+    if (req.HoleScores.Any(hs => hs.Strokes is not null && hs.Strokes <= 0))
+        return Results.Json(new { error = "invalid_strokes" }, statusCode: 422);
+
+    var courseId = await db.Seasons
+        .Where(s => s.Id == membership.SeasonId)
+        .Select(s => s.League.CourseId)
+        .FirstAsync();
+
+    var teeBox = await db.TeeBoxes.FirstOrDefaultAsync(t => t.Id == req.TeeBoxId && t.CourseId == courseId);
+    if (teeBox is null)
+        return Results.Json(new { error = "invalid_tee_box" }, statusCode: 422);
+
+    var expectedHoles = await db.Holes
+        .Where(h => h.CourseId == courseId)
+        .OrderBy(h => h.Number)
+        .ToListAsync();
+
+    var relevantHoles = week.Nine switch
+    {
+        NineType.Front => expectedHoles.Where(h => h.Number <= 9).ToList(),
+        NineType.Back => expectedHoles.Where(h => h.Number > 9).ToList(),
+        _ => expectedHoles
+    };
+
+    var providedHoleIds = req.HoleScores.Select(hs => hs.HoleId).ToHashSet();
+    var expectedHoleIds = relevantHoles.Select(h => h.Id).ToHashSet();
+    if (!providedHoleIds.SetEquals(expectedHoleIds))
+        return Results.Json(new { error = "invalid_holes" }, statusCode: 422);
+
+    var now = DateTime.UtcNow;
+    db.HoleScores.RemoveRange(round.HoleScores);
+
+    round.TeeBoxId = req.TeeBoxId;
+    round.LeagueMembershipId = req.SubId is null ? round.PairingSlot.LeagueMembershipId : null;
+    round.SubId = req.SubId;
+    round.UpdatedBy = membership.Id;
+    round.UpdatedAt = now;
+
+    foreach (var hs in req.HoleScores)
+    {
+        db.HoleScores.Add(new HoleScore
+        {
+            RoundId = round.Id,
+            HoleId = hs.HoleId,
+            Strokes = hs.Strokes,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+    }
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        roundId = round.Id,
+        slotId = round.PairingSlotId,
+        teeBoxId = round.TeeBoxId,
+        leagueMembershipId = round.LeagueMembershipId,
+        subId = round.SubId,
+    });
+});
+
+// DELETE /commissioner/season/matchups/{matchupId}
+commissioner.MapDelete("/season/matchups/{matchupId}", async (Guid matchupId, HttpContext ctx, AppDbContext db) =>
+{
+    var membership = (LeagueMembership)ctx.Items["ActiveMembership"]!;
+
+    var matchup = await db.Matchups
+        .Include(m => m.Pairing)
+            .ThenInclude(p => p.PairingSlots)
+        .Include(m => m.Week)
+        .FirstOrDefaultAsync(m => m.Id == matchupId && m.Week.SeasonId == membership.SeasonId);
+
+    if (matchup is null)
+        return Results.NotFound();
+
+    var isLocked = false; // TODO: replace with Round existence check when score entry lands
+    if (isLocked)
+        return Results.Json(new { error = "matchup_locked" }, statusCode: 409);
+
+    db.PairingSlots.RemoveRange(matchup.Pairing.PairingSlots);
+    db.Pairings.Remove(matchup.Pairing);
+    db.Matchups.Remove(matchup);
     await db.SaveChangesAsync();
 
     return Results.NoContent();
@@ -499,5 +1403,12 @@ static async Task<SetupStatus> ComputeSetupStatus(Guid seasonId, AppDbContext db
 record DevLoginRequest(Guid GolferId);
 record HandicapUpdateRequest(decimal? Handicap);
 record CreateTeamRequest(Guid[] MemberIds);
+record RenameTeamRequest(string Name);
+record CreateMatchupRequest(Guid WeekId, Guid TeamAId, Guid TeamBId);
+record UpdateMatchupRequest(Guid TeamAId, Guid TeamBId);
 record SetupRequirement(string Name, bool IsMet, string Detail);
 record SetupStatus(bool IsComplete, SetupRequirement[] Requirements);
+record CreateSubRequest(string FirstName, string LastName, decimal Handicap);
+record HoleScoreInput(Guid HoleId, int? Strokes);
+record CreateRoundRequest(Guid TeeBoxId, Guid? SubId, List<HoleScoreInput> HoleScores);
+record UpdateRoundRequest(Guid TeeBoxId, Guid? SubId, List<HoleScoreInput> HoleScores);
