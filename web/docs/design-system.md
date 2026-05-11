@@ -125,9 +125,15 @@ All components live in `web/components/`. shadcn primitives are in `web/componen
 
 | Component | Role |
 |---|---|
-| `Shell` | Root layout wrapper — top nav + sidebar + content area |
-| `TopNav` | Top navigation bar; accepts `navSlot` prop for role-aware links |
+| `Shell` | Root layout wrapper — top nav + sidebar + content area; accepts `isCommissioner`, `golferName` |
+| `TopNav` | Top navigation bar; accepts `navSlot` (left, role-aware links) and `userMenuSlot` (right, identity) |
 | `Sidebar` | Responsive sidebar; persistent on desktop, collapsible on mobile |
+
+### Composites (`components/`)
+
+| Component | File | Props | Notes |
+|---|---|---|---|
+| `UserMenu` | `components/user-menu.tsx` | `golferName: string`, `isCommissioner: boolean` | Avatar + dropdown trigger anchored at top-right of header. Returns null when `golferName` is empty (unregistered user). Rendered by `Shell` into `TopNav`'s `userMenuSlot`. |
 
 ---
 

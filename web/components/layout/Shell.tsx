@@ -1,18 +1,25 @@
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
 import { SidebarProvider } from "./SidebarContext";
+import { UserMenu } from "@/components/user-menu";
 
 export function Shell({
   children,
   isCommissioner = false,
+  golferName = "",
 }: {
   children: React.ReactNode;
   isCommissioner?: boolean;
+  golferName?: string;
 }) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen flex-col bg-background">
-        <TopNav />
+        <TopNav
+          userMenuSlot={
+            <UserMenu golferName={golferName} isCommissioner={isCommissioner} />
+          }
+        />
         {/* Body row: sidebar + content side by side */}
         <div className="flex flex-1">
           <Sidebar isCommissioner={isCommissioner} />

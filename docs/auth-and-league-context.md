@@ -172,6 +172,8 @@ LeagueContext {
 
 `leagueName` and `seasonYear` are denormalised onto the context for display — the dashboard renders them directly without a second lookup.
 
+**`golferName` is not on the context.** The golfer's display name (`FirstName`, `LastName`) lives on the `Golfer` entity and is not denormalised here. Any component that needs the golfer's name for display (e.g., `UserMenu` in the app header) must fetch it separately — call the `/me` API endpoint and join the name from the `Golfer` record. The app layout resolves this with a parallel call alongside `resolveLeagueContext()`.
+
 This is the implicit scope of every page render and API call.
 
 **The context is derived server-side on every request, not trusted from

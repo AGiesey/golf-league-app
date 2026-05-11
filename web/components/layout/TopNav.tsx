@@ -1,14 +1,11 @@
 import { SidebarToggle } from "./SidebarToggle";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
 
-// Navigation slot — empty now; a future proposal will populate this with
-// role-aware links (Commissioner vs Golfer views).
 interface TopNavProps {
   navSlot?: React.ReactNode;
+  userMenuSlot?: React.ReactNode;
 }
 
-export function TopNav({ navSlot }: TopNavProps) {
+export function TopNav({ navSlot, userMenuSlot }: TopNavProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
       <div className="flex h-14 items-center gap-4 px-4">
@@ -19,13 +16,8 @@ export function TopNav({ navSlot }: TopNavProps) {
         </span>
         {/* Navigation slot */}
         {navSlot && <nav className="ml-4 flex items-center gap-2">{navSlot}</nav>}
-        <div className="ml-auto">
-          <a
-            href="/api/auth/logout"
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-          >
-            Log out
-          </a>
+        <div className="ml-auto flex items-center">
+          {userMenuSlot}
         </div>
       </div>
     </header>
