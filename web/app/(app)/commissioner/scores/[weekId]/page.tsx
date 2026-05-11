@@ -6,6 +6,7 @@ import { getAccessToken } from "@/lib/auth";
 import { apiFetchAuthenticated } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { H1, Muted } from "@/components/typography";
+import { ScoreStatusBadge, nineLabel, formatDate } from "@/components/scorecard/ScoreStatusBadge";
 
 interface SlotInfo {
   playerName: string;
@@ -32,27 +33,6 @@ interface WeekDetailResponse {
   type: string;
   nine: string;
   matchups: MatchupEntry[];
-}
-
-function statusPill(slotCount: number, roundCount: number) {
-  if (slotCount === 0) return { label: "No matchups", variant: "secondary" as const };
-  if (roundCount === 0) return { label: "Not started", variant: "outline" as const };
-  if (roundCount < slotCount) return { label: "Partial", variant: "default" as const };
-  return { label: "Complete", variant: "default" as const };
-}
-
-function nineLabel(nine: string) {
-  if (nine === "Front") return "Front 9";
-  if (nine === "Back") return "Back 9";
-  return "18 holes";
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
 }
 
 export default async function WeekDetailPage({
@@ -89,7 +69,7 @@ export default async function WeekDetailPage({
         </div>
         <H1 className="mt-2">Week {data.weekNumber}</H1>
         <div className="mt-1 flex items-center gap-2">
-          <Muted>{formatDate(data.startDate)}</Muted>
+          <Muted>{formatDate(data.startDate, { weekday: "long", month: "long", day: "numeric" })}</Muted>
           <Badge variant="secondary">{data.type}</Badge>
           <Badge variant="outline">{nineLabel(data.nine)}</Badge>
         </div>
@@ -102,7 +82,6 @@ export default async function WeekDetailPage({
       ) : (
         <div className="divide-y divide-border rounded-lg border border-border">
           {data.matchups.map((matchup) => {
-            const pill = statusPill(matchup.slotCount, matchup.roundCount);
             const pairing = matchup.pairings[0];
 
             return (
@@ -122,18 +101,7 @@ export default async function WeekDetailPage({
                     </div>
                   )}
                 </div>
-                <Badge
-                  variant={pill.variant}
-                  className={
-                    pill.label === "Complete"
-                      ? "bg-success-500 text-white hover:bg-success-500"
-                      : pill.label === "Partial"
-                        ? "bg-warning-500 text-white hover:bg-warning-500"
-                        : ""
-                  }
-                >
-                  {pill.label}
-                </Badge>
+                <ScoreStatusBadge slotCount={matchup.slotCount} roundCount={matchup.roundCount} />
               </Link>
             );
           })}

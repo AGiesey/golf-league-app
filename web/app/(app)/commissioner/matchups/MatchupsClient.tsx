@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Lock, Pencil, Trash2, Plus, AlertTriangle } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { apiFetchAuthenticated } from "@/lib/api";
 import { PairingHistoryMatrix } from "./PairingHistoryMatrix";
+import { MatchupFormDialog } from "./MatchupFormDialog";
+import { MatchupListItem } from "./MatchupListItem";
 
 interface Week {
   id: string;
@@ -25,7 +27,7 @@ interface MatchupTeam {
   members: TeamMember[];
 }
 
-interface Matchup {
+export interface Matchup {
   matchupId: string;
   teamA: MatchupTeam;
   teamB: MatchupTeam;
@@ -220,7 +222,6 @@ export function MatchupsClient({
     }
   }
 
-  // Derived: prior-play warning for the current form selection
   const pairWarning = (() => {
     if (!form.teamAId || !form.teamBId || !pairingHistory) return null;
     const [a, b] = [form.teamAId, form.teamBId].sort();
@@ -314,55 +315,13 @@ export function MatchupsClient({
             <div className="space-y-3">
               <ul className="space-y-2">
                 {matchups.map((m) => (
-                  <li
+                  <MatchupListItem
                     key={m.matchupId}
-                    className="flex items-start justify-between rounded border border-border p-4"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        {m.teamA.name} vs {m.teamB.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {m.teamA.members
-                          .map((mb) => `${mb.lastName}, ${mb.firstName}`)
-                          .join(" · ")}
-                        {" — "}
-                        {m.teamB.members
-                          .map((mb) => `${mb.lastName}, ${mb.firstName}`)
-                          .join(" · ")}
-                      </p>
-                    </div>
-                    <div className="ml-4 flex shrink-0 items-center gap-2">
-                      {m.isLocked ? (
-                        <Lock
-                          className="size-4 text-muted-foreground"
-                          aria-label="Locked — scores have been entered"
-                        />
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => openEditForm(m)}
-                            className="text-muted-foreground hover:text-foreground"
-                            aria-label="Edit matchup"
-                          >
-                            <Pencil className="size-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteMatchup(m.matchupId)}
-                            disabled={deleting === m.matchupId}
-                            className="text-destructive hover:opacity-70 disabled:opacity-50"
-                            aria-label="Delete matchup"
-                          >
-                            {deleting === m.matchupId ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-4" />
-                            )}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </li>
+                    matchup={m}
+                    deleting={deleting}
+                    onEdit={openEditForm}
+                    onDelete={deleteMatchup}
+                  />
                 ))}
               </ul>
 
@@ -385,91 +344,19 @@ export function MatchupsClient({
         </div>
       )}
 
-      {/* Create / edit dialog */}
-      {form.open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={closeForm}
-        >
-          <div
-            className="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="mb-4 text-base font-semibold">
-              {form.matchupId ? "Edit Matchup" : "Create Matchup"}
-            </h2>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="team-a" className="text-sm font-medium">
-                  Team A
-                </label>
-                <select
-                  id="team-a"
-                  value={form.teamAId}
-                  onChange={(e) => setForm((f) => ({ ...f, teamAId: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm"
-                >
-                  <option value="">Select team…</option>
-                  {teams
-                    .filter((t) => t.teamId !== form.teamBId)
-                    .map((t) => (
-                      <option key={t.teamId} value={t.teamId}>
-                        {t.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="team-b" className="text-sm font-medium">
-                  Team B
-                </label>
-                <select
-                  id="team-b"
-                  value={form.teamBId}
-                  onChange={(e) => setForm((f) => ({ ...f, teamBId: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm"
-                >
-                  <option value="">Select team…</option>
-                  {teams
-                    .filter((t) => t.teamId !== form.teamAId)
-                    .map((t) => (
-                      <option key={t.teamId} value={t.teamId}>
-                        {t.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {pairWarning !== null && (
-                <div className="flex items-center gap-1.5 rounded bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-400">
-                  <AlertTriangle className="size-3.5 shrink-0" />
-                  Already played — Week {pairWarning}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={closeForm}
-                disabled={form.submitting}
-                className="rounded px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitForm}
-                disabled={!form.teamAId || !form.teamBId || form.submitting}
-                className="inline-flex items-center gap-2 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {form.submitting && <Loader2 className="size-4 animate-spin" />}
-                {form.matchupId ? "Save Changes" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MatchupFormDialog
+        open={form.open}
+        isEditing={!!form.matchupId}
+        teams={teams}
+        teamAId={form.teamAId}
+        teamBId={form.teamBId}
+        submitting={form.submitting}
+        pairWarning={pairWarning}
+        onTeamAChange={(id) => setForm((f) => ({ ...f, teamAId: id }))}
+        onTeamBChange={(id) => setForm((f) => ({ ...f, teamBId: id }))}
+        onSubmit={submitForm}
+        onClose={closeForm}
+      />
     </div>
   );
 }

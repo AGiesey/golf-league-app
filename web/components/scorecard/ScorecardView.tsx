@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Scorecard } from "./Scorecard";
+import { ScorecardPanel } from "./ScorecardPanel";
 import { ScoreEntryDialog } from "./ScoreEntryDialog";
 import type { HoleInfo, SlotScore } from "./Scorecard";
 import type { Sub } from "./SubPickerInline";
@@ -105,10 +104,13 @@ export function ScorecardView({
   const frontOffset = 0;
   const backOffset = isFullEighteen ? frontHoles.length : 0;
 
+  const userHasSlot = slots.some((s) => s.leagueMembership.id === membershipId);
+  const showEntryButton = isCommissioner || userHasSlot;
+
   function makeEntryButton(slot: SlotScore, holeSet: HoleInfo[], scoreOffset: number) {
-    if (!isCommissioner) return null;
     const apiSlot = pairing?.slots.find((s) => s.slotId === slot.slotId);
     if (!apiSlot) return null;
+    if (!isCommissioner && apiSlot.leagueMembership.id !== membershipId) return null;
 
     if (slot.roundId) {
       return (
@@ -136,31 +138,6 @@ export function ScorecardView({
     );
   }
 
-  function renderScorecard(holeSet: HoleInfo[], scoreOffset: number, label?: string) {
-    const slotScores = buildSlotScores(slots, holeSet, scoreOffset);
-
-    return (
-      <Card>
-        {label && (
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{label}</CardTitle>
-          </CardHeader>
-        )}
-        <CardContent className={label ? "pt-0" : undefined}>
-          <Scorecard
-            holes={holeSet}
-            slots={slotScores}
-            entryButton={
-              isCommissioner
-                ? (s) => makeEntryButton(s, holeSet, scoreOffset)
-                : undefined
-            }
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {backWeekId && (
@@ -180,11 +157,27 @@ export function ScorecardView({
 
       {isFullEighteen ? (
         <>
-          {renderScorecard(frontHoles, frontOffset, "Front 9")}
-          {backHoles && renderScorecard(backHoles, backOffset, "Back 9")}
+          <ScorecardPanel
+            holes={frontHoles}
+            slotScores={buildSlotScores(slots, frontHoles, frontOffset)}
+            label="Front 9"
+            entryButton={showEntryButton ? (s) => makeEntryButton(s, frontHoles, frontOffset) : undefined}
+          />
+          {backHoles && (
+            <ScorecardPanel
+              holes={backHoles}
+              slotScores={buildSlotScores(slots, backHoles, backOffset)}
+              label="Back 9"
+              entryButton={showEntryButton ? (s) => makeEntryButton(s, backHoles, backOffset) : undefined}
+            />
+          )}
         </>
       ) : (
-        renderScorecard(frontHoles, frontOffset)
+        <ScorecardPanel
+          holes={frontHoles}
+          slotScores={buildSlotScores(slots, frontHoles, frontOffset)}
+          entryButton={showEntryButton ? (s) => makeEntryButton(s, frontHoles, frontOffset) : undefined}
+        />
       )}
 
       {dialog && (

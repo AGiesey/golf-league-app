@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { LeagueHeader } from "@/components/dashboard/LeagueHeader";
 import { MatchupWidget } from "./widgets/MatchupWidget";
 import type { MatchupSummary } from "./widgets/MatchupWidget";
 import { UpcomingMatchupWidget } from "./widgets/UpcomingMatchupWidget";
@@ -110,15 +111,7 @@ export default async function DashboardPage() {
     if (!status.isComplete) {
       return (
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-2xl">{leagueName}</CardTitle>
-                <Badge>Commissioner</Badge>
-              </div>
-              <CardDescription>Season {seasonYear}</CardDescription>
-            </CardHeader>
-          </Card>
+          <LeagueHeader leagueName={leagueName} seasonYear={seasonYear} isCommissioner={isCommissioner} />
           <SetupWidget status={status} />
         </div>
       );
@@ -128,15 +121,7 @@ export default async function DashboardPage() {
 
     return (
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <CardTitle className="text-2xl">{leagueName}</CardTitle>
-              <Badge>Commissioner</Badge>
-            </div>
-            <CardDescription>Season {seasonYear}</CardDescription>
-          </CardHeader>
-        </Card>
+        <LeagueHeader leagueName={leagueName} seasonYear={seasonYear} isCommissioner={isCommissioner} />
         <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
         {summary && <MatchupWidget summary={summary} />}
       </div>
@@ -149,17 +134,13 @@ export default async function DashboardPage() {
   if (!isComplete) {
     return (
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">{leagueName}</CardTitle>
-            <CardDescription>Season {seasonYear}</CardDescription>
-          </CardHeader>
+        <LeagueHeader leagueName={leagueName} seasonYear={seasonYear} isCommissioner={isCommissioner}>
           <CardContent>
             <p className="text-sm text-muted-foreground">
               Your league isn&apos;t ready yet. The commissioner is still setting up this season.
             </p>
           </CardContent>
-        </Card>
+        </LeagueHeader>
       </div>
     );
   }
@@ -168,12 +149,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">{leagueName}</CardTitle>
-          <CardDescription>Season {seasonYear}</CardDescription>
-        </CardHeader>
-      </Card>
+      <LeagueHeader leagueName={leagueName} seasonYear={seasonYear} isCommissioner={isCommissioner} />
       <UpcomingMatchupWidget membershipId={leagueMembershipId} token={token} />
       {summary && <MatchupWidget summary={summary} />}
     </div>
